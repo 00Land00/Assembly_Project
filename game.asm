@@ -35,11 +35,14 @@
 #####################################################################
 
 .data
-ship:		.word		0x4a4a4a 1980 1 1 5
+# structure of every obj
+# [obj]		.word		[color] [pos] [x-bound] [y-bound] [num_pixels (size of array)]
+# [obj_offset]	.half		[array of offsets relative to obj.pos]
+
+ship:		.word		0x4a4a4a 924 1 1 10
 ship_offset:	.half		-132 0 4 124 128
 
 .text
-
 .eqv BASE_ADDRESS 0x10008000
 
 .globl main
@@ -86,12 +89,45 @@ canvas_loop:
 	addi $t0, $t0, 128		# update the address to the next row
 	addi $t1, $t1, 1		# increment the index
 	bne $t1, 32, canvas_loop	# if the index is not yet 32, jump to canvas_loop
+	
+	# draw the ship
+	addi $sp, $sp, -12
+	la $s0, ship			# get &obj
+	la $s1, ship_offset		# get &obj_offset
+	lw $s2, 0($s0)			# get obj.color
+	sw $s0, 0($sp)			# push &obj
+	sw $s1, 4($sp)			# push &obj_offset
+	sw $s2, 8($sp)			# push obj.color
+	
+	jal draw			# call the draw function
 
 
-	li $v0, 10	# gracefully terminate the program (with grace)
+	li $v0, 10			# gracefully terminate the program (with grace)
 	syscall
 
-
+# FUNC PARAM	: $t0=&obj; $t1=&obj_offset; $t2=color;
+# LOCAL REG 	: $t3=pos; $t4=num_pixels; $t5=temp; $t6=temp; $t7=temp;
+draw:
+	lw $t0, 0($sp)			# pop &obj
+	lw $t1, 4($sp)			# pop &obj_offset
+	lw $t2, 8($sp)			# pop color
+	addi $sp, $sp, 12
+	
+	lw $t3, 4($t0)			# get obj.pos
+	lw $t4, 16($t0)			# get obj.num_pixels
+	add $t5, $zero, $zero		# set index
+draw_loop:
+	add $t7, $t1, $t5
+	lh $t7, 0($t7)			# store current offset in $t7
+	
+	add $t6, $t3, $t7
+	addi $t6, $t6, BASE_ADDRESS	# calc (BASE_ADDRESS + obj.pos + obj_offset[i])
+	sw $t2, 0($t6)			# paint at that address the given color
+	
+	addi $t5, $t5, 2		# increment the index
+	bne $t5, $t4, draw_loop		# if the index is not the same as obj.num_pixels, jump back to the draw_loop
+	
+	jr $ra				# return back
 
 
 
