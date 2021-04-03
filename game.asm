@@ -8,8 +8,8 @@
 # Bitmap Display Configuration:
 # - Unit width in pixels: 8 (update this as needed)
 # - Unit height in pixels: 8 (update this as needed)
-# - Display width in pixels: 256 (update this as needed)
-# - Display height in pixels: 128 (update this as needed)
+# - Display width in pixels: 512 (update this as needed)
+# - Display height in pixels: 256 (update this as needed)
 # - Base Address for Display: 0x10008000 ($gp)
 #
 # Which milestones have been reached in this submission?
@@ -39,8 +39,8 @@
 # [obj]		.word		[color] [pos] [x-bound] [y-bound] [num_pixels (size of array)]
 # [obj_offset]	.half		[array of offsets relative to obj.pos]
 
-ship:		.word		0x4a4a4a 924 1 1 10
-ship_offset:	.half		-132 0 4 124 128
+ship:		.word		0x4a4a4a 4160 1 1 10
+ship_offset:	.half		-260 0 4 252 256
 
 .text
 .eqv BASE_ADDRESS 0x10008000
@@ -48,47 +48,40 @@ ship_offset:	.half		-132 0 4 124 128
 .globl main
 main:
 # INITIALIZATION
-	# set canvas
-	li $t0, BASE_ADDRESS		# initialize the canvas_loop by 
-	addi $t1, $zero, 0		# setting the index starting-value, the color of the canvas, 
-	li $t2, 0xfcfcfc		# and the address of the first row of the framebuffer
-canvas_loop:
-	sw $t2, 0($t0)			# paint each unit
-	sw $t2, 4($t0)
-	sw $t2, 8($t0)
-	sw $t2, 12($t0)
-	sw $t2, 16($t0)
-	sw $t2, 20($t0)
-	sw $t2, 24($t0)
-	sw $t2, 28($t0)
-	sw $t2, 32($t0)
-	sw $t2, 36($t0)
-	sw $t2, 40($t0)
-	sw $t2, 44($t0)
-	sw $t2, 48($t0)
-	sw $t2, 52($t0)
-	sw $t2, 56($t0)
-	sw $t2, 60($t0)
-	sw $t2, 64($t0)
-	sw $t2, 68($t0)
-	sw $t2, 72($t0)
-	sw $t2, 76($t0)
-	sw $t2, 80($t0)
-	sw $t2, 84($t0)
-	sw $t2, 88($t0)
-	sw $t2, 92($t0)
-	sw $t2, 96($t0)
-	sw $t2, 100($t0)
-	sw $t2, 104($t0)
-	sw $t2, 108($t0)
-	sw $t2, 112($t0)
-	sw $t2, 116($t0)
-	sw $t2, 120($t0)
-	sw $t2, 124($t0)
+	# set canvas-color
+	# $s0=base_addr; $s1=canvas_color; 
+	# $s2=row_i; $s3=col_i; $s4=A[i][j] (where A is the framebuffer)
 	
-	addi $t0, $t0, 128		# update the address to the next row
-	addi $t1, $t1, 1		# increment the index
-	bne $t1, 32, canvas_loop	# if the index is not yet 32, jump to canvas_loop
+	li $s0, BASE_ADDRESS		# set the starting address
+	li $s1, 0xfcfcfc		# set the color of the canvas
+	addi $s2, $zero, 0		# set the starting index (for row_loop)
+row_loop:
+	addi $s3, $zero, 0		# set the starting index (for col_loop)
+col_loop:
+	add $s4, $s0, $s3		# address at some row and some column (that's divisible by 16)
+	sw $s1, 0($s4)			# paint each unit
+	sw $s1, 4($s4)
+	sw $s1, 8($s4)
+	sw $s1, 12($s4)
+	sw $s1, 16($s4)
+	sw $s1, 20($s4)
+	sw $s1, 24($s4)
+	sw $s1, 28($s4)
+	sw $s1, 32($s4)
+	sw $s1, 36($s4)
+	sw $s1, 40($s4)
+	sw $s1, 44($s4)
+	sw $s1, 48($s4)
+	sw $s1, 52($s4)
+	sw $s1, 56($s4)
+	sw $s1, 60($s4)
+	
+	addi $s3, $s3, 64		# update the address to the next set of columns
+e_cl:	bne $s3, 256, col_loop		# if the address is not yet at the end of the framebuffer, jump to col_loop
+	
+	addi $s0, $s0, 256		# update the address to the next row
+	addi $s2, $s2, 1		# increment the index
+e_rl:	bne $s2, 32, row_loop		# if the index is not yet 32, jump to row_loop
 	
 	# draw the ship
 	addi $sp, $sp, -12
