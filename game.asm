@@ -35,32 +35,47 @@
 #####################################################################
 
 .data
-# structure of every obj
-# [obj]		.word		[pos] [size of offset_array (in bytes)] [address of offset_array (initialized)]
-# [obj_offset]	.half		[array of offsets relative to obj.pos]
+# structure of the SHIP
+# [obj]			.word		[pos] [size of offset_array (in bytes)] [address of offset_array (initialized)] [damage timer] [health]
+# ship has: (1, 1) bounds relative to the center of the ship
+# ship has: pos because it's the one and only pos for this obj
+ship:			.word		4160 10 0 0 3
+ship_offset:		.half		-260 0 4 252 256
+
+
+# structure of every ROCK-TYPE
+# [obj]			.word		[size of offset_array (in bytes)] [address of offset_array (initialized)] [x-padding] [y-padding]
+# [obj_offset]		.half		[array of offsets relative to obj.pos]
 # NOTE that the color of the obj is made explicit in the .eqv
 # NOTE that the bounds of each obj are made explicit and hardcoded in the boundary and collision check (specified in comments)
 
-# ship has: (1, 1) bounds relative to the center of the ship
-ship:			.word		4160 10 0
-ship_offset:		.half		-260 0 4 252 256
-
 # s_rock has: (1, 1) bounds relative to the center of s_rock
-s_rock:			.word 		0 10 0
+s_rock:			.word 		10 0 1 1
 s_rock_offset:		.half		-256 -4 0 4 256
 
 # m_rock has: (1, 1) bounds relative to the center of m_rock
-m_rock:			.word		0 18 0
+m_rock:			.word		18 0 1 1 
 m_rock_offset:		.half		-260 -256 -252 -4 0 4 252 256 260
 
 # b_rock has: (2, 2) bounds relative to the center of b_rock
-b_rock:			.word		0 74 0
+b_rock:			.word		74 0 2 2
 b_rock_offset:		.space		74
 # b_rock_dec are extra pixels to make b_rock more (DEC)orative
 b_rock_dec:		.half		-12, 12, -244, 244, -268, 268, -764, -768, -772, 764, 768, 772
 
+# structure of every ROCK
+# [obj]			.word		[pos] [speed] [dir multiplier] [address of some ROCK-TYPE]
+r0:			.word		-1 0 0 0 
+r1:			.word		-1 0 0 0
+r2:			.word		-1 0 0 0 
+r3:			.word		-1 0 0 0
+r4:			.word		-1 0 0 0
+r5:			.word		-1 0 0 0
+r6:			.word		-1 0 0 0
+r7:			.word		-1 0 0 0
+
 # ARRAY OF ROCKS
-obj_arr:		.word 		0 0 0
+obj_arr:		.word 		0 0 0 0 0 0 0 0
 
 .text
 .eqv BASE_ADDRESS 0x10008000
@@ -71,10 +86,13 @@ obj_arr:		.word 		0 0 0
 .eqv WIDTH 64
 .eqv HEIGHT 32
 
-.eqv SHIP_COLOR	0x4a4a4a
+.eqv SHIP_BASE_COLOR 0x4a4a4a
+.eqv SHIP_DMG_COLOR 0xb84242
 .eqv S_ROCK_COLOR 0xe86691
 .eqv M_ROCK_COLOR 0xe8d964
 .eqv B_ROCK_COLOR 0x63bfdb
+
+.eqv MAX_ROCKS 8
 
 .globl main
 main:
@@ -115,21 +133,16 @@ e_crl:	bne $s2, 32, crow_loop		# if index not yet 32, jump to row_loop
 
 
 	# initialize the ROCKS and obj_array
-	# $s0=rock; $s1=obj_array; $s2=rock_offset;
-	la $s1, obj_arr			# get address of obj_array
-	
+	# $s0=rock; $s2=rock_offset;
 	la $s0, s_rock
 	la $s2, s_rock_offset
-	sw $s2, 8($s0)			# store address of s_rock_offset in s_rock
-	sw $s0, 0($s1)			# store address of s_rock in obj_array
+	sw $s2, 16($s0)			# store address of s_rock_offset in s_rock
 	la $s0, m_rock
 	la $s2, m_rock_offset
-	sw $s2, 8($s0)			# store address of m_rock_offset in m_rock
-	sw $s0, 4($s1)			# store address of m_rock in obj_array
+	sw $s2, 16($s0)			# store address of m_rock_offset in m_rock
 	la $s0, b_rock
 	la $s2, b_rock_offset
-	sw $s2, 8($s0)			# store address of b_rock_offset in b_rock
-	sw $s0, 8($s1)			# store address of b_rock in obj_array
+	sw $s2, 16($s0)			# store address of b_rock_offset in b_rock
 	
 	# initialize b_rock's offset
 	# $s0=&b_rock_offset; $s2=&b_rock_dec; $t0=index;
@@ -170,19 +183,25 @@ rock_dec_loop:
 	addi $t0, $t0, 8		# update the index to get the next set of offsets
 e_rdl:	bne $t0, 24, rock_dec_loop	# if index is not yet 24, jump onto rock_loop
 
-	
-	### TEMPORARY: drawing the big rock at some arbitrary position to make sure things still work
-	### $t0=&b_rock; $t1=color; $t2=pos;
-	addi $sp, $sp, -12
-	lw $t0, 8($s1)
-	li $t1, B_ROCK_COLOR
-	li $t2, 4288
-	sw $t0, 0($sp)
-	sw $t1, 4($sp)
-	sw $t2, 8($sp)
-	
-	jal draw
-	
+	# store the ROCKS in obj_arr
+	# $s0=&ROCK; $s1=&obj_arr;
+	la $s1, obj_arr
+	la $s0, r0
+	sw $s0, 0($s1)
+	la $s0, r1
+	sw $s0, 4($s1)
+	la $s0, r2
+	sw $s0, 8($s1)
+	la $s0, r3
+	sw $s0, 12($s1)
+	la $s0, r4
+	sw $s0, 16($s1)
+	la $s0, r5
+	sw $s0, 20($s1)
+	la $s0, r6
+	sw $s0, 24($s1)
+	la $s0, r7
+	sw $s0, 28($s1)
 	
 	
 	# initialize AND draw the ship
@@ -192,7 +211,7 @@ e_rdl:	bne $t0, 24, rock_dec_loop	# if index is not yet 24, jump onto rock_loop
 	la $s2, ship_offset		
 	sw $s2, 8($s0)			# assign address of ship_offset in ship
 	lw $s2, 0($s0)			# get pos of ship
-	li $s1, SHIP_COLOR		# get color of ship
+	li $s1, SHIP_BASE_COLOR		# get color of ship
 	
 	sw $s0, 0($sp)			# push &ship
 	sw $s1, 4($sp)			# push color
@@ -206,7 +225,32 @@ e_rdl:	bne $t0, 24, rock_dec_loop	# if index is not yet 24, jump onto rock_loop
 game_loop:
 
 update_obj:
-
+	# go through each rock in obj_arr
+		# if pos is -1
+			# generate a new ROCK TYPE
+			# generate a new y-coord (x-coord is fixed)
+			# generate random direction to start off
+		# get x-y coords
+		# compute new coords using the direction and speed
+		# check if still in bound (with padding considered)
+			# if on edge, not only set it at edge, change direction sign
+			# if at LHS, reset everything and make sure it's not drawn on the next frame
+		# draw it NOW (because we know it's valid)
+		# then check for collision so that next frame, it's gone
+		# with valid new pos, check for collision with the ship (and the bullet later)
+			# how exactly? 
+			# we get the ship's x-y coords and we calculate the differences
+			# check if it's within the padding for eg if the padding was 1 we check: -1 <= x/y <= 1
+			# the importance is that both x and y are within the ineq, otherwise it could just be on the same row/col
+			# then we can do damage and destroy the rock
+			# doing damage is decrementing the health in the ship and setting the damage timer to 6
+				# why 6? i calculated the ms to hrtz and hrtz to fps and we're going at 12fps, i want to change the color for at 
+				# least half a second and if multiple collide, i want to reset the timer, not add more to it because that might look weird.
+				# I WILL MODIFY ship-loop (at the end, where it is going to be drawn) to include a check if it's non-0
+				# it will decrement that timer and reroute the draw function to draw with the specified color of damage
+				# have to include that check near the front so that even if the ship hasn't moved, it can still be updated
+		
+e_obj: # we could have this as a branch 
 	
 update_ship:
 	# get input
@@ -286,7 +330,7 @@ s_i:
 	# $s0=&ship; $s1=temp; $s2=temp; $s3=new-pos;
 	addi $sp, $sp, -12
 	la $s0, ship			# get address of ship
-	li $s1, SHIP_COLOR		# get color of ship
+	li $s1, SHIP_BASE_COLOR		# get color of ship
 	
 	sw $s0, 0($sp)			# push &ship
 	sw $s1, 4($sp)			# push color
@@ -334,6 +378,9 @@ draw_loop:
 	jr $ra				# return back
 
 
+## function for converting index to x, y
+
+## function for converting x, y to index
 
 
 
