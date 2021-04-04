@@ -47,7 +47,6 @@ ship_offset:		.half		-260 0 4 252 256
 # [obj]			.word		[size of offset_array (in bytes)] [address of offset_array (initialized)] [x-padding] [y-padding]
 # [obj_offset]		.half		[array of offsets relative to obj.pos]
 # NOTE that the color of the obj is made explicit in the .eqv
-# NOTE that the bounds of each obj are made explicit and hardcoded in the boundary and collision check (specified in comments)
 
 # s_rock has: (1, 1) bounds relative to the center of s_rock
 s_rock:			.word 		10 0 1 1
@@ -57,23 +56,25 @@ s_rock_offset:		.half		-256 -4 0 4 256
 m_rock:			.word		18 0 1 1 
 m_rock_offset:		.half		-260 -256 -252 -4 0 4 252 256 260
 
-# b_rock has: (2, 2) bounds relative to the center of b_rock
-b_rock:			.word		74 0 2 2
+# b_rock has: (3, 3) bounds relative to the center of b_rock
+b_rock:			.word		74 0 3 3
 b_rock_offset:		.space		74
 # b_rock_dec are extra pixels to make b_rock more (DEC)orative
 b_rock_dec:		.half		-12, 12, -244, 244, -268, 268, -764, -768, -772, 764, 768, 772
 
 # structure of every ROCK
-# [obj]			.word		[pos] [speed] [dir multiplier] [address of some ROCK-TYPE]
-r0:			.word		-1 0 0 0 
-r1:			.word		-1 0 0 0
-r2:			.word		-1 0 0 0 
-r3:			.word		-1 0 0 0
-r4:			.word		-1 0 0 0
-r5:			.word		-1 0 0 0
-r6:			.word		-1 0 0 0
-r7:			.word		-1 0 0 0
+# [obj]			.word		[pos] [h-speed] [v-speed] [dir multiplier] [address of some ROCK-TYPE]
+r0:			.word		-1 0 0 0 0 
+r1:			.word		-1 0 0 0 0
+r2:			.word		-1 0 0 0 0
+r3:			.word		-1 0 0 0 0
+r4:			.word		-1 0 0 0 0
+r5:			.word		-1 0 0 0 0
+r6:			.word		-1 0 0 0 0
+r7:			.word		-1 0 0 0 0
 
+# ARRAY OF ROCK-TYPE
+type_arr:		.word		0 0 0
 # ARRAY OF ROCKS
 obj_arr:		.word 		0 0 0 0 0 0 0 0
 
@@ -132,17 +133,21 @@ e_ccl:	bne $s3, 256, ccol_loop		# if address not yet at end of framebuffer, jump
 e_crl:	bne $s2, 32, crow_loop		# if index not yet 32, jump to row_loop
 
 
-	# initialize the ROCKS and obj_array
-	# $s0=rock; $s2=rock_offset;
+	# initialize the ROCKS and obj_array and type_array
+	# $s0=rock; $s1=&type_arr; $s2=rock_offset;
+	la $s1, type_arr
 	la $s0, s_rock
 	la $s2, s_rock_offset
-	sw $s2, 16($s0)			# store address of s_rock_offset in s_rock
+	sw $s2, 4($s0)			# store address of s_rock_offset in s_rock
+	sw $s0, 0($s1)			# store address of s_rock in type_arr
 	la $s0, m_rock
 	la $s2, m_rock_offset
-	sw $s2, 16($s0)			# store address of m_rock_offset in m_rock
+	sw $s2, 4($s0)			# store address of m_rock_offset in m_rock
+	sw $s0, 4($s1)			# store address of m_rock in type_arr
 	la $s0, b_rock
 	la $s2, b_rock_offset
-	sw $s2, 16($s0)			# store address of b_rock_offset in b_rock
+	sw $s2, 4($s0)			# store address of b_rock_offset in b_rock
+	sw $s0, 8($s1)			# store address of b_rock in type_arr
 	
 	# initialize b_rock's offset
 	# $s0=&b_rock_offset; $s2=&b_rock_dec; $t0=index;
@@ -221,10 +226,83 @@ e_rdl:	bne $t0, 24, rock_dec_loop	# if index is not yet 24, jump onto rock_loop
 # START-SCREEN
 
 # GAME-LOOP
-# $s0=&ship; $s1=&obj_arr
+# $s0=&ship; $s1=&obj_arr; $s2=&type_arr;
 game_loop:
-
+	# update the ROCKS
+	# $s1=&obj_arr; $s2=&type_arr; $s3=A[i] (where A is the obj_arr); $t0=index (for obj_arr);
+	la $s1, obj_arr			# get address of obj_arr
+	la $s2, type_arr		# get address of type_arr
+	add $t0, $zero, $zero		# set the starting index
 update_obj:
+	# $s1=&obj_arr; $s2=&type_arr; $s3=A[i] (where A is the obj_arr); $s4=rock_pos; $t0=index (for obj_arr);
+	add $s1, $s1, $t0		# update obj_arr pointer
+	lw $s3, 0($s1)			# get address of rock 
+	lw $s4, 0($s3)			# get pos of rock
+	bne $s4, -1, rock_exists	# if pos is NOT -1, jump to rock_exists
+	
+	# randomly generate a bunch of values to assign to our newly made  R O C K
+	# randomly assign the ROCK-TYPE
+	li $v0, 42
+	li $a0, 0
+	li $a1, 3
+	syscall				# generate a random INT from 0-2 (inclusive)
+	sll $a0, $a0, 2			# and multiply it by 4
+	add $a0, $s2, $a0		# add that offset to type_arr
+	lw $a0, 0($a0)
+	sw $a0, 16($s3)			# store it in rock.type
+	
+	# randomly assign the dir_multiplier
+	li $v0, 42
+	li $a0, 0
+	li $a1, 2
+	syscall				# generate a random INT from 0-1 (inclusive)
+	# choose whether to store 1 or -1 
+	beq $a0, 1, go_down		# if the random INT was 1, jump to go_down
+	addi $a0, $zero, -1
+go_down:
+	sw $a0, 8($s3)			# store it in rock.dir_multiplier 
+	
+	# randomly assign a (valid) x-coord
+	# $t1=x-coord;
+	li $v0, 42
+	li $a0, 0
+	li $a1, 21
+	syscall
+	addi $t1, $a0, 40		# generate a random INT from 40-60 (inclusive)
+	# randomly assign a (valid) y-coord
+	# $t2=y-coord;
+	li $v0, 42
+	li $a0, 0
+	li $a1, 25
+	syscall
+	addi $t2, $a0, 3		# generate a random INT from 3-28 (inclusive) 
+	# convert x-y coords into index-pos
+	sll $t2, $t2, 6
+	add $t1, $t2, $t1
+	sll $t1, $t1, 2			# calc (y-coord * 2^6 + x-coord) * 4
+	sw $t1, 0($s3)			# store it in rock.pos
+	
+	# randomly assign a h-speed value
+	li $v0, 42
+	li $a0, 0
+	li $a1, 3
+	syscall
+	addi $a0, $a0, 1		# generate a random INT from 1-3 (inclusive)
+	sw $a0, 4($s3)			# store it in rock.h_speed
+	# randomly assign a v-speed value
+	li $v0, 42
+	li $a0, 0
+	li $a1, 4
+	syscall				# generate a random INT from 0-3 (inclusive)
+	sw $a0, 8($s3)			# store it in rock.v_speed
+	
+	j e_obj				# will be drawn on the next frame
+rock_exists:
+
+
+
+	addi $t0, $t0, 4
+	bne $t0, 32, update_obj
 	# go through each rock in obj_arr
 		# if pos is -1
 			# generate a new ROCK TYPE
