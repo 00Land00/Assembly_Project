@@ -38,12 +38,29 @@
 # structure of every obj
 # [obj]		.word		[pos] [size of offset_array (in bytes)] [address of offset_array (initialized)]
 # [obj_offset]	.half		[array of offsets relative to obj.pos]
-# NOTE that the color of the ship is made explicit in the .eqv
+# NOTE that the color of the obj is made explicit in the .eqv
 # NOTE that the bounds of each obj are made explicit and hardcoded in the boundary and collision check (specified in comments)
 
 # ship has: (1, 1) bounds relative to the center of the ship
 ship:			.word		4160 10 0
 ship_offset:		.half		-260 0 4 252 256
+
+# s_rock has: (1, 1) bounds relative to the center of s_rock
+s_rock:			.word 		0 10 0
+s_rock_offset:		.half		-256 -4 0 4 256
+
+# m_rock has: (1, 1) bounds relative to the center of m_rock
+m_rock:			.word		0 18 0
+m_rock_offset:		.half		-260 -256 -252 -4 0 4 252 256 260
+
+# b_rock has: (2, 2) bounds relative to the center of b_rock
+b_rock:			.word		0 74 0
+b_rock_offset:		.space		74
+# b_rock_dec are extra pixels to make b_rock more (DEC)orative
+b_rock_dec:		.half		-12, 12, -244, 244, -268, 268, -764, -768, -772, 764, 768, 772
+
+# ARRAY OF ROCKS
+obj_arr:		.word 		0 0 0
 
 .text
 .eqv BASE_ADDRESS 0x10008000
@@ -55,13 +72,9 @@ ship_offset:		.half		-260 0 4 252 256
 .eqv HEIGHT 32
 
 .eqv SHIP_COLOR	0x4a4a4a
-
-
-# FIX THE COMMENTS
-# FIX THE BUGS
-# OPTIMIZE 
-# IMPLEMENT THE OBSTACLES
-
+.eqv S_ROCK_COLOR 0xe86691
+.eqv M_ROCK_COLOR 0xe8d964
+.eqv B_ROCK_COLOR 0x63bfdb
 
 .globl main
 main:
@@ -72,9 +85,9 @@ main:
 	li $s0, BASE_ADDRESS		# set starting address
 	li $s1, BG_COLOR		# set color of the canvas
 	addi $s2, $zero, 0		# set starting index (for row_loop)
-row_loop:
+crow_loop:
 	addi $s3, $zero, 0		# set starting index (for col_loop)
-col_loop:
+ccol_loop:
 	add $s4, $s0, $s3		# address at some row and some column (that's divisible by 16)
 	sw $s1, 0($s4)			# paint each unit
 	sw $s1, 4($s4)
@@ -94,11 +107,83 @@ col_loop:
 	sw $s1, 60($s4)
 	
 	addi $s3, $s3, 64		# update address to next set of columns
-e_cl:	bne $s3, 256, col_loop		# if address not yet at end of framebuffer, jump to col_loop
+e_ccl:	bne $s3, 256, ccol_loop		# if address not yet at end of framebuffer, jump to col_loop
 	
 	addi $s0, $s0, 256		# update the address to the next row
 	addi $s2, $s2, 1		# increment the index
-e_rl:	bne $s2, 32, row_loop		# if index not yet 32, jump to row_loop
+e_crl:	bne $s2, 32, crow_loop		# if index not yet 32, jump to row_loop
+
+
+	# initialize the ROCKS and obj_array
+	# $s0=rock; $s1=obj_array; $s2=rock_offset;
+	la $s1, obj_arr			# get address of obj_array
+	
+	la $s0, s_rock
+	la $s2, s_rock_offset
+	sw $s2, 8($s0)			# store address of s_rock_offset in s_rock
+	sw $s0, 0($s1)			# store address of s_rock in obj_array
+	la $s0, m_rock
+	la $s2, m_rock_offset
+	sw $s2, 8($s0)			# store address of m_rock_offset in m_rock
+	sw $s0, 4($s1)			# store address of m_rock in obj_array
+	la $s0, b_rock
+	la $s2, b_rock_offset
+	sw $s2, 8($s0)			# store address of b_rock_offset in b_rock
+	sw $s0, 8($s1)			# store address of b_rock in obj_array
+	
+	# initialize b_rock's offset
+	# $s0=&b_rock_offset; $s2=&b_rock_dec; $t0=index;
+	la $s0, b_rock_offset		# get address of b_rock_offset
+	li $t0, -520			# set starting index
+rock_loop:
+	sh $t0, 0($s0)			# store each 5 pixel offsets into b_rock_offset
+	addi $t0, $t0, 4
+	sh $t0, 2($s0)
+	addi $t0, $t0, 4
+	sh $t0, 4($s0)
+	addi $t0, $t0, 4
+	sh $t0, 6($s0)
+	addi $t0, $t0, 4
+	sh $t0, 8($s0)
+	addi $t0, $t0, 4
+	
+	addi $s0, $s0, 10		# update the pointer of b_rock_offset
+	addi $t0, $t0, 236		# update the index to get the next row of pixels
+e_rl:	bne $t0, 760, rock_loop		# if index is not yet on the 6th row, jump onto rock_loop
+
+	# initialize b_rock's decorative offset
+	# $s0=&b_rock_offset; $s2=&b_rock_dec; $s3=A[i] (where A is b_rock_dec); $t0=index;
+	la $s2, b_rock_dec		# get address of b_rock_dec
+	add $t0, $zero, $zero		# reset starting index
+rock_dec_loop:
+	lh $s3, 0($s2)			# copy each 4 offset-elements in b_rock_dec onto b_rock_offset
+	sh $s3, 0($s0)
+	lh $s3, 2($s2)
+	sh $s3, 2($s0)
+	lh $s3, 4($s2)
+	sh $s3, 4($s0)
+	lh $s3, 6($s2)
+	sh $s3, 6($s0)
+	
+	addi $s0, $s0, 8		# update the pointer of b_rock_offset
+	addi $s2, $s2, 8		# update the pointer of b_rock_dec
+	addi $t0, $t0, 8		# update the index to get the next set of offsets
+e_rdl:	bne $t0, 24, rock_dec_loop	# if index is not yet 24, jump onto rock_loop
+
+	
+	### TEMPORARY: drawing the big rock at some arbitrary position to make sure things still work
+	### $t0=&b_rock; $t1=color; $t2=pos;
+	addi $sp, $sp, -12
+	lw $t0, 8($s1)
+	li $t1, B_ROCK_COLOR
+	li $t2, 4288
+	sw $t0, 0($sp)
+	sw $t1, 4($sp)
+	sw $t2, 8($sp)
+	
+	jal draw
+	
+	
 	
 	# initialize AND draw the ship
 	# $s0=&ship; $s1=temp; $s2=temp;
@@ -119,6 +204,9 @@ e_rl:	bne $s2, 32, row_loop		# if index not yet 32, jump to row_loop
 # GAME-LOOP
 # $s0=&ship; $s1=&obj_arr
 game_loop:
+
+update_obj:
+
 	
 update_ship:
 	# get input
@@ -128,8 +216,6 @@ update_ship:
 	bne $s3, 1, e_ship		# ensure that user did input something, otherwise jump to e_i
 	li $s3, KEYSTROKE
 	lw $s3, 4($s3)			# get ASCII user input
-	
-	### SOMETHING IS GOING ON WITH THE X-Y COORDS
 	
 	# store old-x-y-coords
 	# $s0=&ship; $s5=old-ship.pos; $t0=old-x-coord; $t1=old-y-coord; $t2=new-x-coord; $t3=new-y-coord;
@@ -150,11 +236,11 @@ update_ship:
 	beq $s3, 100, D			# input was D
 	j e_ship			# input was INVALID
 
-W:	addi $t3, $t1, -2		# calc new-y-coord with padding 
+W:	addi $t3, $t1, -3		# calc new-y-coord with padding 
 	blt $t3, 0, v_lb		# if invalid, go to vertical-lower-bound
 	addi $t3, $t3, 1		# remove padding
 	j s_i				
-S:	addi $t3, $t1, 2		# calc new-y-coord with padding 
+S:	addi $t3, $t1, 3		# calc new-y-coord with padding 
 	bge $t3, HEIGHT, v_ub		# if invalid, go to vertical-upper-bound
 	addi $t3, $t3, -1		# remove padding
 	j s_i
@@ -165,11 +251,11 @@ v_ub:	addi $t3, $zero, HEIGHT		# set new-y-coord (without padding) at HEIGHT-2
 	addi $t3, $t3, -2
 	j s_i 
 
-A:	addi $t2, $t0, -2		# calc new-x-coord with padding
+A:	addi $t2, $t0, -3		# calc new-x-coord with padding
 	blt $t2, 0, h_lb		# if invalid, go to horizontal-lower-bound
 	addi $t2, $t2, 1		# remove padding
 	j s_i
-D:	addi $t2, $t0, 2		# calc new-x-coord with padding
+D:	addi $t2, $t0, 3		# calc new-x-coord with padding
 	bge $t2, WIDTH, h_ub		# if invalid, got horizontal-upper-bound
 	addi $t2, $t2, -1		# remove padding
 	j s_i
@@ -181,13 +267,13 @@ h_ub:	addi $t2, $zero, WIDTH		# set new-x-coord (without padding) at WIDTH-2
 	
 s_i:
 	# convert new-x-y coords 
-	# $s2-old-pos; $s3=new-pos; $s4=temp; $t2=new-x-coord; $t3=new-y-coord;
+	# $s3=new-pos; $t2=new-x-coord; $t3=new-y-coord;
 	sll $t3, $t3, 6			# calc (new-y-coord * 2^6)
 	add $s3, $t3, $t2		# calc (new-y-coord * 2^6) + new-x-coord
 	sll $s3, $s3, 2			# calc ((new-y-coord * 2^6) + new-x-coord) * 2^2
 	
 	# with differences, set it AND redraw it (otherwise, don't redraw)
-	# $s0=&ship; $s1=temp; $s2=temp;
+	# $s0=&ship; $s1=temp; $s2=temp; $s5=old-pos;
 	addi $sp, $sp, -12
 	la $s0, ship			# get address of ship
 	li $s1, BG_COLOR		# get color of canvas
@@ -197,7 +283,7 @@ s_i:
 	sw $s5, 8($sp)			# push pos
 	jal draw			# call 'draw' function
 	
-	# $s0=&ship; $s1=temp; $s2=temp;
+	# $s0=&ship; $s1=temp; $s2=temp; $s3=new-pos;
 	addi $sp, $sp, -12
 	la $s0, ship			# get address of ship
 	li $s1, SHIP_COLOR		# get color of ship
