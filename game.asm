@@ -283,8 +283,11 @@ update_obj:
 	lw $s3, 4($s3)
 
 	# does this rock exist?
-	# $s3=&obj_info; $t1=x-coord;
+	# $s3=&obj_info; $t1=x-coord; $t2=y-coord;
 	lh $t1, 0($s3)			# get x-coord
+	lh $t2, 2($s3)			# get y-coord
+	lh $t3, 4($s3)			# get h-speed
+	lh $t4, 6($s3)			# get v-speed
 	bne $t1, -1, rock_exists	# jump to rock_exists if x-coord is NOT -1
 	
 	
@@ -319,115 +322,93 @@ update_obj:
 	addi $t2, $a0, 3		# generate a random INT from 3-28 (inclusive) 
 	sh $t2, 2($s3)			# store it in obj_arr[i].obj_info.y_coord
 	# randomly assign a h-velocity value (i call it h-speed, but here, i incorporated direction) 
-	# $s3=&obj_info; 
+	# $s3=&obj_info; $t3=h-speed
 	li $v0, 42
 	li $a0, 0
 	li $a1, 2
 	syscall
-	addi $a0, $a0, -2		# generate a random INT from (-2)-(-1) (inclusive)
-	sh $a0, 4($s3)			# store it in obj_arr[i].obj_info.h_speed
+	addi $t3, $a0, -2		# generate a random INT from (-2)-(-1) (inclusive)
+	sh $t3, 4($s3)			# store it in obj_arr[i].obj_info.h_speed
 	# randomly assign a v-speed value
-	# $s3=&obj_info; $t2=y-coord; $t3=temp; 
+	# $s3=&obj_info; $t2=y-coord; $t4=v-speed; 
 	li $v0, 42
 	li $a0, 0
 	li $a1, 5
 	syscall		
-	bne $a0, 2, svs
-	blt $t2, 12, lh
-	addi $a0, $a0, -1
-	j svs	
-lh:	addi $a0, $a0, 1
-svs:
-	addi $t3, $a0, -2		# generate a random INT from (-2)-(2)/{0} (inclusive)
-	sh $t3, 6($s3)			# store it in obj_arr[i].obj_info.v_speed
+	#bne $a0, 2, svs
+	#blt $t2, 16, lh
+	#addi $t4, $a0, -1
+	#j svs	
+#lh:	addi $t4, $a0, 1
+#svs:
+	addi $t4, $a0, -2		# generate a random INT from (-2)-(2) (inclusive)
+	sh $t4, 6($s3)			# store it in obj_arr[i].obj_info.v_speed
 	
 	
 rock_exists:
-	# get x-y coords 
-	# $s3=&obj_info; $t1=x-coord; $t2=y-coord; 
-	lh $t1, 0($s3)
-	lh $t2, 2($s3)		
-	
+	# get paddings
+	# $s4=&obj_type; $t5=x-padding; $t6=y-padding;
+	lw $t5, 12($s4)			# get x-padding
+	lw $t6, 16($s4)			# get y-padding
+
 	# calc new coords 
-	# $s3=&obj_info; $s4=&obj_type; $t1=new x-coord; $t2=new y-coord; $t3=temp;
+	# $s3=&obj_info; $s4=&obj_type; $t1=new x-coord; $t2=new y-coord; $t3=h-speed; $t4=v-speed;
 	# add h-speed
-	lh $t3, 4($s3)
 	add $t1, $t1, $t3		# h-speed
 	# add v-speed
-	lh $t3, 6($s3)
-	add $t2, $t2, $t3		# v-speed
+	add $t2, $t2, $t4		# v-speed
 	
-	# calc y-speed + padding
-	# $s4=&obj_type; $t3=v-speed; $t4=combined-value; $t5=temp;
-	add $t5, $t3, $zero
-	lw $t4, 16($s4)			# y-padding
+	# calc new x-coord + x-padding (x-combined)	
+	# calc v-speed + y-padding (y-combined)
+	# $s4=&obj_type; $t1=new x-coord; $t3=h-speed; $t4=v-speed; $t5=x-padding; $t6=y-padding; $t7=x-combined; $t8=y-combined; $t9=temp;
+	add $t7, $t1, $t5		# x-combined
 	
-	bgtz $t3, pos1
-	sll $t5, $t3, 1
-	sub $t5, $t3, $t5
+	add $t8, $t4, $zero		# y-combined
+	bgtz $t4, pos1
+	sll $t8, $t4, 1
+	sub $t8, $t4, $t8
 pos1:
-	add $t4, $t4, $t5
-	bgtz, $t3, pos2
-	sll $t5, $t4, 1
-	sub $t4, $t4, $t5
+	add $t8, $t8, $t6
+	bgtz, $t4, pos2
+	sll $t9, $t8, 1
+	sub $t8, $t8, $t9
 pos2:
 	
 	# verify y-coord is valid
-	# $s3=&obj_info; $t3=new y-coord (with padding); $t4=combined-value; $t5=y-padding;
-	lh $t3, 2($s3)
-	add $t3, $t3, $t4
-	lw $t5, 16($s4)
+	# $s3=&obj_info; $t8=y-combined; $t9=old y-coord;
+	lh $t9, 2($s3)
+	add $t9, $t9, $t8
 	
-	bltz $t3, top
-	bge $t3, HEIGHT, bottom
+	bltz $t9, top
+	bge $t9, HEIGHT, bottom
 	j left
 top:
 	# update so it stays on screen
-	# $t2=new y-coord; $t5=y-padding;
-	add $t2, $t5, $zero
+	# $t2=new y-coord; $t6=y-padding;
+	add $t2, $t6, $zero
 	j swap
 bottom:
 	# update so it stays on screen
-	# $t2=new y-coord; $t5=y-padding;
+	# $t2=new y-coord; $t6=y-padding;
 	addi $t2, $zero, 31
-	sub $t2, $t2, $t5
+	sub $t2, $t2, $t6
 swap:
 	# change v-speed direction
-	# $t3=new v-speed; $t4=temp;
-	lh $t3, 6($s3)
-	sll $t4, $t3, 1
-	sub $t3, $t3, $t4
-	sh $t3, 6($s3)
+	# $t4=new v-speed; $t9=temp;
+	sll $t9, $t4, 1
+	sub $t4, $t4, $t9
+	sh $t4, 6($s3)
 left:	
 	# verify x-coord
-	# $s4=&obj_type; $t1=old x-coord; $t3=new x-coord (with padding);
-	lw $t3, 12($s4)
-	add $t3, $t3, $t1
-	bgez $t3, s_np
-erase:
-	# erase from screen (be mindful of the index)
-	# $s1=&obj_arr; $s3=&obj_info; $s4=&obj_type; $t0=index; $t3=temp;
-	lw $a0, 0($s1)
-	li $a1, BG_COLOR
-	lh $a2, 0($s3)
-	lh $a3, 2($s3)
+	# $t7=x-combined;
+	bgez $t7, s_np
 	
-	addi $sp, $sp, -4
-	sw $t0, 0($sp)
-	jal draw
-	
-	# reset ROCK
-	li $t3, -1
-	sh $t3, 0($s3)
-	
-	# increment loop
-	lw $t0, 0($sp)
-	addi $sp, $sp, 4
-	j i_obj
+	# indicate that this ROCK is set for removal
+	# $t1=new x-coord;
+	addi $t1, $zero, -1
+	j d_obj
 s_np:	
 
-# find a way to draw only at most twice for each rock and at one place
-	# use an indicator for left and col_loop so that for the second draw, they won't do it
 # optimize and find ways to set it in the register and not have to get it again (in the obj_loop)
 # clean up the ship's code
 # relabel everything better?
@@ -440,174 +421,155 @@ s_np:
 # score system and restarting
 
 
+ship_col:
 	# collision check (with the ship)
-	# get x-coord
-	# $s0=&ship; $s3=&obj_info; $t3=x-diff; $t4=temp;
-	lw $t3, 4($s0)
-	lh $t3, 0($t3)
-	lh $t4, 0($s3)
-	sub $t3, $t3, $t4
-	# get x-padding
-	# $t4=combined-padding; 
-	lw $t4, 12($s4)
-	addi $t4, $t4, -1
+	# get x-y diff
+	# $s0=&ship; $s3=&obj_info; $s5=x-diff; $s6=y-diff; $t7=ship x-coord; $t8=ship y-coord; $t9=temp;
+	lw $t9, 4($s0)
+	lh $t7, 0($t9)
+	lh $t8, 2($t9)
+	
+	lh $t9, 0($s3)
+	sub $s5, $t7, $t9
+	lh $t9, 2($s3)
+	sub $s6, $t8, $t9
+	# get x-paddings
+	# $t9=x-paddings; 
+	addi $t9, $t5, -1			# ship padding is hardcoded
 	# check for horizontal collision
-	# $t3=x-diff; $t4=combined-padding; $t5=temp; 
-	blt $t3, $t4, e_ship_col
-	sll $t5, $t4, 1
-	sub $t4, $t4, $t5
-	bgt $t3, $t4, e_ship_col
-	# get y-coord
-	# $s0=&ship; $s3=&obj_info; $t3=y-diff; $t4=temp;
-	lw $t3, 4($s0)
-	lh $t3, 2($t3)
-	lh $t4, 2($s3)
-	sub $t3, $t3, $t4
-	# get y-padding
-	# $t4=combined-padding; 
-	lw $t4, 16($s4)
-	addi $t4, $t4, 1
+	# $t3=x-diff; $t4=combined-padding; $t5=temp; $s7=temp;
+	blt $s5, $t9, e_ship_col
+	sll $s7, $t9, 1
+	sub $t9, $t9, $s7
+	bgt $s5, $t9, e_ship_col
+	# get y-paddings
+	# $t9=y-paddings; 
+	addi $t9, $t6, 1			# ship padding is hardcoded
 	# check for vertical collision
 	# $t3=y-diff; $t4=combined-padding; $t5=temp;
-	bgt $t3, $t4, e_ship_col
-	sll $t5, $t4, 1
-	sub $t4, $t4 $t5
-	blt $t3, $t4, e_ship_col
-	
-	# so it did collide
-	# this is where we activate a bunch of stuff 
-	# and j to erase
-	
-ship_col:
-	# activate damage timer
-	# decrement health
+	bgt $s6, $t9, e_ship_col
+	sll $s7, $t9, 1
+	sub $t9, $t9, $s7
+	blt $s6, $t9, e_ship_col
+
+	# it did collide
+	# activate damage timer | decrement health
 	# do a slight pause
 	li $v0, 32
 	li $a0, 300
 	syscall
-	j erase
+	addi $t1, $zero, -1
+	j d_obj
 e_ship_col:
 
-
-
-	# the reason I'm using old coords to check for collision with the ship 
-	# and why i'm using new coords to check for collision with other rocks 
-	# is due to 1 main issue: Layering
-	# the ship will always be drawn last (ie, on top of everything)
-	# that can not be said the same for the other rocks 
-	# using old coords lets the player know that they got hit 
-	# using new coords prevents overlapping and weird drawing issues
-	# and this is really why i came up with this design choice this main mechanic
 	# collision check (with other ROCKS)
+	# setup
 	# $s5=&obj_arr; $t9=index;
 	la $s5, obj_arr
 	li $t9, 0
 col_loop:
-	# setup for the rest of this loop
+	# more setup for the rest of this loop
 	# $s5=&obj_arr; $s6=&obj_info; $s7=&obj_type;
 	lw $s7, 0($s5)
-	lw $s6, 4($s7)
-	lw $s7, 0($s7)
+	lw $s6, 4($s7)				# get &obj_info
+	lw $s7, 0($s7)				# get &obj_type
+	# ensure it's not the same rock
+	# $s1=&obj_arr; $s5=&obj_arr; $t7=temp;
+	sub $t7, $s1, $s5			# calc diff of &obj_arr(s)
+	beqz $t7, i_col_loop			# jump to i_col_loop if diff is 0
 	
-	# get diff of &obj_arr
-	# $s1=&obj_arr; $s5=&obj_arr; $t3=temp;
-	sub $t3, $s1, $s5
-	beqz $t3, i_col_loop
-	# get x-coord (of other rock)
-	# $s5=&obj_arr; $t3=temp;
-	lh $t3, 0($s6)
-	beq $t3, -1, i_col_loop
+	# get x-coords then x-diff then x-padding
+	# $s6=&obj_info; $t7=x-coord; 
+	lh $t7, 0($s6)				# get x-coord
+	beq $t7, -1, i_col_loop			# jump to i_col_loop if x-coord is -1
+	# $t1=new x-coord; $t7=x=coord; 
+	sub $t7, $t1, $t7			# calc x-diff
+	# $s7=&obj_type; $t5=x-padding; $t8=x-paddings;
+	lw $t8, 12($s7)				# get x-padding
+	add $t8, $t8, $t5			# calc sum of x-paddings
+	# check for horizontal collision
+	# $t3=temp; $t7=x-diff; $t8=x-paddings;
+	blt $t7, $t8, i_col_loop		# jump to i_col_loop if x-diff < x-paddings
+	sll $t3, $t8, 1			
+	sub $t8, $t8, $t3			# calc inverse of x-paddings
+	bgt $t7, $t8, i_col_loop		# jump to i_col_loop if x-diff > x-paddings
 	
-	# get x-y diff
-	# $t1=new x-coord; $t2=new y-coord; $t3=x-diff; $t4=y-diff; $t5=temp;
-	lh $t5, 0($s6)
-	sub $t3, $t1, $t5
-	lh $t5, 2($s6)
-	sub $t4, $t2, $t5
-	# get x-padding (for both) AND compare with x-diff
-	# $s4=$s7=&obj_type; $t3=x-diff; $t5=x-padding; $t6=temp;
-	lw $t5, 12($s7)
-	lw $t6, 12($s4)
-	add $t5, $t5, $t6
-	blt $t3, $t5, i_col_loop		# this is assuming that the x-padding is negative to begin with
-	sll $t6, $t5, 1
-	sub $t5, $t5, $t6
-	bgt $t3, $t5, i_col_loop
-	# get y-padding AND compare with y-diff
-	# $s4=$s7=&obj_type; $t4=y-diff; $t5=y-padding; $t6=temp;
-	lw $t5, 16($s7)
-	lw $t6, 16($s4)
-	add $t5, $t5, $t6
-	bgt $t4, $t5, i_col_loop		# this is assuming that the y-padding is positive to begin with
-	sll $t6, $t5, 1
-	sub $t5, $t5, $t6
-	blt $t4, $t5, i_col_loop
+	# get y-coords then y-diff then y-padding
+	# $s6=&obj_info; $s7=&obj_type; $t7=y-coord; $t8=y-paddings
+	lh $t7, 2($s6)				# get y-coord
+	sub $t7, $t2, $t7			# calc y-diff
+	lw $t8, 16($s7)				# get y-padding
+	add $t8, $t8, $t6			# calc sum of y-paddings
+	# check for vertical collision
+	# $t3=temp; $t7=y-diff; $t8=y-paddings;
+	bgt $t7, $t8, i_col_loop		# jump to i_col_loop if y-diff > y-paddings
+	sll $t3, $t8, 1
+	sub $t8, $t8, $t3			# calc inverse of y-paddings
+	blt $t7, $t8, i_col_loop		# jump to i_col_loop if y-diff < y-paddings
 	
 	
 	# get product of v-speeds
-	# $t5=product; $t4=temp;
-	lh $t5, 6($s3)
-	lh $t4, 6($s6)
-	mult $t5, $t4
-	mflo $t5
+	# $s6=&obj_info; $t3=product; $t4=v-speed;
+	lh $t3, 6($s6)
+	mult $t3, $t4
+	mflo $t3				# calc product of v-speeds 
 	
 	# swap v-speed (of other rock)
-	# $s6=&obj_info; $t3=v-speed; $t4=temp;
-	lh $t3, 6($s6)
-	sll $t4, $t3, 1
-	sub $t3, $t3, $t4
-	sh $t3, 6($s6)
+	# $s6=&obj_info; $t7=v-speed; $t8=temp;
+	lh $t7, 6($s6)				
+	sll $t8, $t7, 1
+	sub $t7, $t7, $t8
+	sh $t7, 6($s6)				# calc inverse of v-speed (and set it)
 	# check if same direction
-	# $t5=product;
-	bgtz $t5, erase
+	# $t3=product;
+	bgtz $t3, invalid_pos
 	# swap v-speed (of current rock)
-	# $s3=&obj_info; $t3=v-speed; $t4=temp;
-	lh $t3, 6($s3)
-	sll $t4, $t3, 1
-	sub $t3, $t3, $t4
-	sh $t3, 6($s3)
+	# $t3=temp; $t4=v-speed;
+	sll $t3, $t4, 1
+	sub $t4, $t4, $t3
+	sh $t4, 6($s3)				# calc inverse of v-speed (and set it)
 	
 	# update current rock's y-coord
-	# $t2=new y-coord; $t3=copy of $t2; $t4=v-speed; $t5=y-padding;
+	# $t2=new y-coord; $t3=copy of $t2; $t4=v-speed; $t6=y-padding;
 	lh $t2, 2($s3)
-	lh $t4, 6($s3)
 	add $t2, $t2, $t4
 	add $t3, $t2, $zero
 	
-	lw $t5, 16($s4)
 	bgtz $t4, pos3
-	sub $t3, $t3, $t5
+	sub $t3, $t3, $t6
 	j e_pos3
 pos3:
-	add $t3, $t3, $t5
+	add $t3, $t3, $t6
 e_pos3:
 	# check if it collides past the borders
 	# $t3=$t2 (but with padding);
-	bltz $t3, erase
-	bge $t3, HEIGHT, erase
-	# check if it no longer collides with the other rock
-	# $t3=$t2 (but with padding); $t4=y-diff; $t5=combined-padding; $t6=temp;
-	lh $t4, 2($s3)
-	lh $t6, 2($s6)
-	sub $t4, $t4, $t6
-	
-	lw $t5, 16($s4)
-	lw $t6, 16($s7)
-	add $t5, $t5, $t6		# remember that this is now positive 
-	bgt $t4, $t5, i_col_loop
-	sll $t6, $t5, 1
-	sub $t5, $t5, $t6
-	blt $t4, $t5, i_col_loop
-	j erase
+	bltz $t3, invalid_pos
+	bge $t3, HEIGHT, invalid_pos
+	# get new y-diff then new y-paddings 
+	# $s6=&obj_info; $s7=&obj_type; $t6=y-padding; $t7=y-diff; $t8=y-paddings;
+	lh $t7, 2($s6)
+	sub $t7, $t2, $t7			# calc new y-diff
+	lw $t8, 16($s7)				
+	add $t8, $t8, $t6			# calc sum of y-paddings
+	# check if there's still vertical collision
+	# $t1=new x-coord; $t3=temp; $t7=y-diff; $t8=y-paddings;
+	bgt $t7, $t8, i_col_loop
+	sll $t3, $t8, 1
+	sub $t8, $t8, $t3
+	blt $t7, $t8, i_col_loop
+invalid_pos:
+	addi $t1, $zero, -1
+	j d_obj
 	
 	
 i_col_loop:
-	# increment index for branch in e_col_loop
-	# increment $s5
+	# increment index and &obj_arr
+	# $s5=&obj_arr; $t9=index;
 	addi $s5, $s5, 4
 	addi $t9, $t9, 4
-e_col_loop: bne $t9, 12, col_loop
+e_col_loop: bne $t9, 24, col_loop
 	
+d_obj:
 	# cover the old
 	# $s1=&obj_arr; $s3=temp (&obj_type AND &obj_info);
 	# $t0=index; $t1=new x-coord; $t2=new y-coord; $t3=temp;
@@ -622,25 +584,25 @@ e_col_loop: bne $t9, 12, col_loop
 	lh $a3, 2($s3)
 	jal draw
 	
+	lh $t1, 0($sp)
+	lh $t2, 2($sp)
+	addi $sp, $sp, 4
+	sh $t1, 0($s3)
+	sh $t2, 2($s3)
+	beq $t1, -1, i_obj
+	
 	# and paint with the new
 	lw $a0, 0($s1)
 	lw $a1, 0($s4)
-	lh $a2, 0($sp)
-	lh $a3, 2($sp)
+	addi $a2, $t1, 0
+	addi $a3, $t2, 0
 	jal draw
-	
-	lh $t1, 0($sp)
-	lh $t2, 2($sp)
-	sh $t1, 0($s3)
-	sh $t2, 2($s3)
-	addi $sp, $sp, 4
+i_obj:
 	lw $t0, 0($sp)
 	addi $sp, $sp, 4
-
-i_obj:
 	addi $s1, $s1, 4		# update obj_arr pointer
 	addi $t0, $t0, 4
-e_obj: bne $t0, 12, update_obj
+e_obj: bne $t0, 24, update_obj
 	
 	
 update_ship:
