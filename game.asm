@@ -63,7 +63,7 @@ m_rock:			.word		0xe8d964 18 0 -1 1
 m_rock_offset:		.half		-260 -256 -252 -4 0 4 252 256 260
 
 # b_rock has: (3, 3) bounds relative to the center of b_rock
-b_rock:			.word		0x63bfdb 74 0 -3 3
+b_rock:			.word		0x63bfdb 74 0 -3 3 
 b_rock_offset:		.space		74
 # b_rock_dec are extra pixels to make b_rock more (DEC)orative
 b_rock_dec:		.half		-12, 12, -244, 244, -268, 268, -764, -768, -772, 764, 768, 772
@@ -426,16 +426,78 @@ erase:
 	j i_obj
 s_np:	
 
-# figure out collision with ship (and resetting the rock) (ship is immortal at this point)
 # find a way to draw only at most twice for each rock and at one place
 	# use an indicator for left and col_loop so that for the second draw, they won't do it
+# optimize and find ways to set it in the register and not have to get it again (in the obj_loop)
 # clean up the ship's code
+# relabel everything better?
+
 # implement health system
 # implement indicator of damage
+# implement UI
 # implement stopping condition (so it can end without me stopping it manually)
 # shooting stuff
 # score system and restarting
 
+
+	# collision check (with the ship)
+	# get x-coord
+	# $s0=&ship; $s3=&obj_info; $t3=x-diff; $t4=temp;
+	lw $t3, 4($s0)
+	lh $t3, 0($t3)
+	lh $t4, 0($s3)
+	sub $t3, $t3, $t4
+	# get x-padding
+	# $t4=combined-padding; 
+	lw $t4, 12($s4)
+	addi $t4, $t4, -1
+	# check for horizontal collision
+	# $t3=x-diff; $t4=combined-padding; $t5=temp; 
+	blt $t3, $t4, e_ship_col
+	sll $t5, $t4, 1
+	sub $t4, $t4, $t5
+	bgt $t3, $t4, e_ship_col
+	# get y-coord
+	# $s0=&ship; $s3=&obj_info; $t3=y-diff; $t4=temp;
+	lw $t3, 4($s0)
+	lh $t3, 2($t3)
+	lh $t4, 2($s3)
+	sub $t3, $t3, $t4
+	# get y-padding
+	# $t4=combined-padding; 
+	lw $t4, 16($s4)
+	addi $t4, $t4, 1
+	# check for vertical collision
+	# $t3=y-diff; $t4=combined-padding; $t5=temp;
+	bgt $t3, $t4, e_ship_col
+	sll $t5, $t4, 1
+	sub $t4, $t4 $t5
+	blt $t3, $t4, e_ship_col
+	
+	# so it did collide
+	# this is where we activate a bunch of stuff 
+	# and j to erase
+	
+ship_col:
+	# activate damage timer
+	# decrement health
+	# do a slight pause
+	li $v0, 32
+	li $a0, 300
+	syscall
+	j erase
+e_ship_col:
+
+
+
+	# the reason I'm using old coords to check for collision with the ship 
+	# and why i'm using new coords to check for collision with other rocks 
+	# is due to 1 main issue: Layering
+	# the ship will always be drawn last (ie, on top of everything)
+	# that can not be said the same for the other rocks 
+	# using old coords lets the player know that they got hit 
+	# using new coords prevents overlapping and weird drawing issues
+	# and this is really why i came up with this design choice this main mechanic
 	# collision check (with other ROCKS)
 	# $s5=&obj_arr; $t9=index;
 	la $s5, obj_arr
@@ -544,7 +606,7 @@ i_col_loop:
 	# increment $s5
 	addi $s5, $s5, 4
 	addi $t9, $t9, 4
-e_col_loop: bne $t9, 16, col_loop
+e_col_loop: bne $t9, 12, col_loop
 	
 	# cover the old
 	# $s1=&obj_arr; $s3=temp (&obj_type AND &obj_info);
@@ -578,7 +640,7 @@ e_col_loop: bne $t9, 16, col_loop
 i_obj:
 	addi $s1, $s1, 4		# update obj_arr pointer
 	addi $t0, $t0, 4
-e_obj: bne $t0, 16, update_obj
+e_obj: bne $t0, 12, update_obj
 	
 	
 update_ship:
