@@ -426,6 +426,16 @@ erase:
 	j i_obj
 s_np:	
 
+# figure out collision with ship (and resetting the rock) (ship is immortal at this point)
+# find a way to draw only at most twice for each rock and at one place
+	# use an indicator for left and col_loop so that for the second draw, they won't do it
+# clean up the ship's code
+# implement health system
+# implement indicator of damage
+# implement stopping condition (so it can end without me stopping it manually)
+# shooting stuff
+# score system and restarting
+
 	# collision check (with other ROCKS)
 	# $s5=&obj_arr; $t9=index;
 	la $s5, obj_arr
@@ -469,7 +479,7 @@ col_loop:
 	bgt $t4, $t5, i_col_loop		# this is assuming that the y-padding is positive to begin with
 	sll $t6, $t5, 1
 	sub $t5, $t5, $t6
-	blt $t3, $t5, i_col_loop
+	blt $t4, $t5, i_col_loop
 	
 	
 	# get product of v-speeds
@@ -502,7 +512,7 @@ col_loop:
 	add $t2, $t2, $t4
 	add $t3, $t2, $zero
 	
-	lw $t5, 16($s3)
+	lw $t5, 16($s4)
 	bgtz $t4, pos3
 	sub $t3, $t3, $t5
 	j e_pos3
@@ -536,11 +546,10 @@ i_col_loop:
 	addi $t9, $t9, 4
 e_col_loop: bne $t9, 16, col_loop
 	
-d_obj:
 	# cover the old
 	# $s1=&obj_arr; $s3=temp (&obj_type AND &obj_info);
 	# $t0=index; $t1=new x-coord; $t2=new y-coord; $t3=temp;
-	addi $sp, $sp, -8
+	addi $sp, $sp, -8		
 	sh $t1, 0($sp)
 	sh $t2, 2($sp)
 	sw $t0, 4($sp)
