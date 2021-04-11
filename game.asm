@@ -35,16 +35,14 @@
 #####################################################################
 
 .data
-message:		.asciiz		"\n"
-
 # structure of the SHIP
 # [obj]			.word		[ship_type] [ship_info]
-# [obj_info]		.half		[x-coord] [y-coord] [h-speed] [v-speed] [dmg timer] [health] 
+# [obj_info]		.half		[x-coord] [y-coord] [h-speed] [v-speed] [health] 
 # [obh_type]		.word		[color] [sizeof offset_arr] [address of offset_arr] [x-padding] [y-padding]
 # ship has: (1, 1) bounds relative to the center of the ship
 # ship has: pos because it's the one and only pos for this obj
 ship:			.word		0 0 
-ship_info:		.half		15 15 2 2 0 3
+ship_info:		.half		15 15 2 2 10
 ship_type:		.word		0x4a4a4a 10 0 1 1
 ship_offset:		.half		-260 0 4 252 256
 
@@ -93,6 +91,13 @@ type_arr:		.word		0 0 0
 # ARRAY OF ROCKS
 obj_arr:		.word 		0 0 0 0 0 0 0 0
 
+# UI
+# structure of HEALTH BAR
+# [obj]				.word		[current y-index] [size of offset array (in bytes)] [address of offset array]
+# [obj_offset]			.space		[offset space amount]
+health:				.word		1 120 0 
+health_offset:			.space		120
+
 .text
 .eqv BASE_ADDRESS 0x10008000
 .eqv BG_COLOR 0xfcfcfc
@@ -103,9 +108,10 @@ obj_arr:		.word 		0 0 0 0 0 0 0 0
 .eqv HEIGHT 32
 
 .eqv SHIP_BASE_COLOR 0x4a4a4a
-.eqv SHIP_DMG_COLOR 0xb84242
 
-.eqv MAX_ROCKS 8
+.eqv HEALTH_DAM 0xff3d3d
+.eqv HEALTH_FILL 0x5c5c5c
+.eqv HEALTH_GAP 0xcfcfcf
 
 .globl main
 main:
@@ -143,6 +149,60 @@ e_ccl:	bne $s3, 256, ccol_loop		# if address not yet at end of framebuffer, jump
 	addi $s2, $s2, 1		# increment the index
 e_crl:	bne $s2, 32, crow_loop		# if index not yet 32, jump to row_loop
 
+	# initialize HEALTH_OFFSET
+	# $s0=&health_offset; $s1=&health;
+	la $s1, health
+	la $s0, health_offset
+	sw $s0, 8($s1)
+	addi $t0, $t0, 0
+hp_l:
+	sh $t0, 0($s0)
+	addi $t0, $t0, 4
+	sh $t0, 2($s0)
+	addi $t0, $t0, 252
+	sh $t0, 4($s0)
+	addi $t0, $t0, 4
+	sh $t0, 6($s0)
+	addi $t0, $t0, 252
+	sh $t0, 8($s0)
+	addi $t0, $t0, 4
+	sh $t0, 10($s0)
+	addi $t0, $t0, 252
+	
+	addi $s0, $s0, 12
+e_hpl: bne $t0, 7680, hp_l
+	# draw HEALTH
+	# $s1=health;
+	addi $a0, $s1, 0
+	li $a1, HEALTH_FILL
+	li $a2, 61
+	li $a3, 1
+	jal draw
+	li $t0, 12
+	sw $t0, 4($s1)
+
+# redraw in health bar when damaged
+# rebound right edge for player ship
+	
+	# this is where it will officially be drawn, but we'll have a breakpoint to see if i can draw and figure out a way to draw the damaged bar
+	# first run: full bar with the color of health_fill
+	# second run:
+		# set the value of size of offset to be smaller than usual (store it in register for now)
+		# figure out a formula to do it so it removes three rows at a time
+		# draw with health_gap
+		# then add the offset with the offset address
+		# and use the rest of the offset along with the offsetted offset array address and assign it to health
+		# then draw with health_fill
+		# reassign previous things
+		
+		# OH we don't have to recolor the previous health_gap
+		# we can start with a full offset with health_fill for all
+		# then we can reduce offset by some amount which is transfered to the offset in the offset address
+		# we draw the full offset amount initially with the beginning of the offset address
+		# after we do that, we change the offset to be the amount of pixels we want removed (3 rows is 6 pixels which is 12 offset amount)
+		# we set that offset and add (and also set) that to the offset address
+		# hopefully there's no off-by-one
+		# but this makes it easy because we don't have to worry about drawing the bar again, we just paint over what we need to remove
 
 	# initialize ROCK-TYPEs and TYPE_ARRAY
 	# $s0=rock; $s1=&type_arr; $s2=rock_offset;
@@ -155,11 +215,11 @@ e_crl:	bne $s2, 32, crow_loop		# if index not yet 32, jump to row_loop
 	sw $s1, 0($s2)			# store s_rock in type_arr
 	la $s0, m_rock_offset
 	la $s1, m_rock
-	sw $s0, 8($s1)			# store m_rock_offset in s_rock
+	sw $s0, 8($s1)			# store m_rock_offset in m_rock
 	sw $s1, 4($s2)			# store m_rock in type_arr
 	la $s0, b_rock_offset
 	la $s1, b_rock
-	sw $s0, 8($s1)			# store b_rock_offset in s_rock
+	sw $s0, 8($s1)			# store b_rock_offset in b_rock
 	sw $s1, 8($s2)			# store b_rock in type_arr
 	# initialize B_ROCK_OFFSET
 	# $s0=&b_rock_offset; $t0=index;
@@ -252,11 +312,8 @@ e_rdl:	bne $t0, 24, rock_dec_loop	# jump onto rock_loop if starting index not ye
 # START-SCREEN
 	# draw SHIP
 	# $s0=&ship; $t0=temp; $t1=temp;
-	la $s0, ship
-	addi $a0, $s0, 0		# push &ship
-	lw $t0, 0($s0)
-	lw $t0, 0($t0)
-	addi $a1, $t0, 0		# push ship_type.color
+	lw $a0, 0($s0)			# push &ship
+	li $a1, SHIP_BASE_COLOR		# push ship_type.color
 	lw $t0, 4($s0)
 	lh $t1, 0($t0)
 	addi $a2, $t1, 0		# push ship_info.x_coord
@@ -309,9 +366,9 @@ update_obj:
 	# $s3=&obj_info; $t1=x-coord;
 	li $v0, 42
 	li $a0, 0
-	li $a1, 11
+	li $a1, 7
 	syscall
-	addi $t1, $a0, 50		# generate a random INT from 50-60 (inclusive)
+	addi $t1, $a0, 50		# generate a random INT from 50-56 (inclusive)
 	sh $t1, 0($s3)			# store it in obj_arr[i].obj_info.x_coord
 	# randomly assign a (valid) y-coord
 	# $s3=&obj_info; $t2=y-coord;
@@ -409,9 +466,6 @@ left:
 	j d_obj
 s_np:	
 
-# optimize and find ways to set it in the register and not have to get it again (in the obj_loop)
-# clean up the ship's code
-# relabel everything better?
 
 # implement health system
 # implement indicator of damage
@@ -419,6 +473,7 @@ s_np:
 # implement stopping condition (so it can end without me stopping it manually)
 # shooting stuff
 # score system and restarting
+# relabel and make better comments
 
 
 ship_col:
@@ -452,16 +507,48 @@ ship_col:
 	sub $t9, $t9, $s7
 	blt $s6, $t9, e_ship_col
 
+
 	# it did collide
-	# activate damage timer | decrement health
+	# decrement health
+	lw $t3, 4($s0)
+	lh $t4, 8($t3)
+	addi $t4, $t4, -1
+	sh $t4, 8($t3)
+	# preserve $t0 - $t2
+	addi $sp, $sp, -8
+	addi $t1, $zero, -1		
+	sh $t1, 0($sp)
+	sh $t2, 2($sp)
+	sw $t0, 4($sp)
+	# update the bar
+	la $s7, health
+	addi $a0, $s7, 0
+	li $a1, HEALTH_DAM
+	li $a2, 61
+	lw $a3, 0($s7)
+	jal draw
 	# do a slight pause
 	li $v0, 32
-	li $a0, 300
+	li $a0, 350
 	syscall
-	addi $t1, $zero, -1
-	j d_obj
+	# change it back 
+	addi $a0, $s7, 0
+	li $a1, HEALTH_GAP
+	li $a2, 61
+	lw $a3, 0($s7)
+	addi $t3, $a3, 3
+	sw $t3, 0($s7)
+	jal draw
+	# check if it's gg
+	# this is where you branch out of game_loop if it was 0
+	lw $t3, 4($s0)
+	lh $t4, 8($t3)
+	beqz $t4, e_game
+	# jump if it aint
+	j d_ship_col
 e_ship_col:
-
+	
+	beqz $t4, d_obj
 	# collision check (with other ROCKS)
 	# setup
 	# $s5=&obj_arr; $t9=index;
@@ -567,7 +654,7 @@ i_col_loop:
 	# $s5=&obj_arr; $t9=index;
 	addi $s5, $s5, 4
 	addi $t9, $t9, 4
-e_col_loop: bne $t9, 24, col_loop
+e_col_loop: bne $t9, 16, col_loop
 	
 d_obj:
 	# cover the old
@@ -577,8 +664,9 @@ d_obj:
 	sh $t1, 0($sp)
 	sh $t2, 2($sp)
 	sw $t0, 4($sp)
-	
-	lw $a0, 0($s1)
+
+d_ship_col:
+	addi $a0, $s4, 0
 	addi $a1, $zero, BG_COLOR
 	lh $a2, 0($s3)
 	lh $a3, 2($s3)
@@ -592,7 +680,7 @@ d_obj:
 	beq $t1, -1, i_obj
 	
 	# and paint with the new
-	lw $a0, 0($s1)
+	addi $a0, $s4, 0
 	lw $a1, 0($s4)
 	addi $a2, $t1, 0
 	addi $a3, $t2, 0
@@ -602,103 +690,81 @@ i_obj:
 	addi $sp, $sp, 4
 	addi $s1, $s1, 4		# update obj_arr pointer
 	addi $t0, $t0, 4
-e_obj: bne $t0, 24, update_obj
+e_obj: bne $t0, 16, update_obj
 	
 	
 update_ship:
 	# store x-y coords
-	# $s0=&ship; $t0=x-coord; $t1=y-coord; $t2=temp;
-	lw $t2, 4($s0)
-	lh $t0, 0($t2)
-	lh $t1, 2($t2)
+	# $s0=&ship; $s3=&ship_info; $s4=&ship_type; $t0=x-coord; $t1=y-coord;
+	lw $s3, 4($s0)
+	lw $s4, 0($s0)
+	lh $t0, 0($s3)
+	lh $t1, 2($s3)
 	# $t0=x-coord; $t1=y-coord; $t2=new x-coord; $t3=new y-coord;
 	addi $t2, $t0, 0
 	addi $t3, $t1, 0
 
 	# get input
-	# $s3=keystroke_val;
-	li $s3, KEYSTROKE
-	lw $s3, 0($s3)			# get keystroke-event value
-	bne $s3, 1, draw_ship		# ensure that user did input something, otherwise jump to e_i
-	li $s3, KEYSTROKE
-	lw $s3, 4($s3)			# get ASCII user input
+	# $s5=keystroke_val; $s6=temp;
+	li $s5, KEYSTROKE
+	lw $s6, 0($s5)			# get keystroke-event value
+	bne $s6, 1, draw_ship		# ensure that user did input something, otherwise jump to e_i
+	lw $s5, 4($s5)			# get ASCII user input
 	
 
 	# check to ensure input was valid
 	# $s3=keystroke_val; $t0=old-x-coord; $t1=old-y-coord; $t2=new-x-coord; $t3=new-y-coord;
-	beq $s3, 119, W			# input was W
-	beq $s3, 115, S			# input was S
-	beq $s3, 97, A			# input was A
-	beq $s3, 100, D			# input was D
+	beq $s5, 119, W			# input was W
+	beq $s5, 115, S			# input was S
+	beq $s5, 97, A			# input was A
+	beq $s5, 100, D			# input was D
+	# input was p
+	# input was i
 	j draw_ship			# input was INVALID
 
-W:	addi $t3, $t1, -3		# calc new-y-coord with padding 
-	blt $t3, 0, v_lb		# if invalid, go to vertical-lower-bound
-	addi $t3, $t3, 1		# remove padding
+W:	addi $t3, $t1, -2		# calc new-y-coord with padding 
+	bge $t3, 1, s_i 		# if invalid, go to vertical-lower-bound
+	addi $t3, $zero, 1
 	j s_i				
-S:	addi $t3, $t1, 3		# calc new-y-coord with padding 
-	bge $t3, HEIGHT, v_ub		# if invalid, go to vertical-upper-bound
-	addi $t3, $t3, -1		# remove padding
+S:	addi $t3, $t1, 2		# calc new-y-coord with padding 
+	ble $t3, 30, s_i		# if invalid, go to vertical-upper-bound
+	addi $t3, $zero, 30
 	j s_i
-	
-v_lb:	addi $t3, $zero, 1		# set new-y-coord (without padding) at 1
+A:	addi $t2, $t0, -2		# calc new-x-coord with padding
+	bge $t2, 1, s_i 		# if invalid, go to horizontal-lower-bound
+	addi $t2, $zero, 1		# remove padding
 	j s_i
-v_ub:	addi $t3, $zero, HEIGHT		# set new-y-coord (without padding) at HEIGHT-2
-	addi $t3, $t3, -2
-	j s_i 
-
-A:	addi $t2, $t0, -3		# calc new-x-coord with padding
-	blt $t2, 0, h_lb		# if invalid, go to horizontal-lower-bound
-	addi $t2, $t2, 1		# remove padding
-	j s_i
-D:	addi $t2, $t0, 3		# calc new-x-coord with padding
-	bge $t2, WIDTH, h_ub		# if invalid, got horizontal-upper-bound
-	addi $t2, $t2, -1		# remove padding
-	j s_i
-	
-h_lb:	addi $t2, $zero, 1		# set new-x-coord (without padding) at 1
-	j s_i
-h_ub:	addi $t2, $zero, WIDTH		# set new-x-coord (without padding) at WIDTH-2
-	addi $t2, $t2, -2
-	
+D:	addi $t2, $t0, 2		# calc new-x-coord with padding
+	blt $t2, 62, s_i		# if invalid, got horizontal-upper-bound
+	addi $t2, $zero, 62		# remove padding
 s_i:
 	
 	# with differences, set it AND redraw it (otherwise, don't redraw)
 	# $s0=&ship; $s1=temp; $s2=temp; $s5=old-pos;
-	addi $sp, $sp, -8
-	sw $t2, 0($sp)
-	sw $t3, 4($sp)
+erase_ship:
+	addi $sp, $sp, -4
+	sh $t2, 0($sp)
+	sh $t3, 2($sp)
 	
-	addi $a0, $s0, 0
-	li $a1, BG_COLOR
+	lw $a0, 0($s0)
+	addi $a1, $zero, BG_COLOR
 	addi $a2, $t0, 0
 	addi $a3, $t1, 0
 	jal draw
 	
-	lw $t2, 0($sp)
-	lw $t3, 4($sp)
-	addi $sp, $sp, 8
+	lh $t2, 0($sp)
+	lh $t3, 2($sp)
+	sh $t2, 0($s3)
+	sh $t3, 2($s3)
+	addi $sp, $sp, 4
 	
 draw_ship:
-	
-	addi $sp, $sp, -8
-	sw $t2, 0($sp)
-	sw $t3, 4($sp)
 	# $s0=&ship; $s1=temp; $s2=temp; $s3=new-pos; $t7=temp;
-	addi $a0, $s0, 0
-	lw $t7, 0($a0)
-	lw $a1, 0($t7)
+	lw $a0, 0($s0)
+	lw $a1, 0($s4)
 	addi $a2, $t2, 0
 	addi $a3, $t3, 0
 	jal draw
-	
-	lw $t2, 0($sp)
-	lw $t3, 4($sp)
-	addi $sp, $sp, 8
-	
-	lw $t7, 4($s0)
-	sh $t2, 0($t7)
-	sh $t3, 2($t7)
 e_ship:
 	
 	# sleep
@@ -707,25 +773,26 @@ e_ship:
 	syscall
 	j game_loop
 
+e_game:
 # END-SCREEN
 	li $v0, 10			# gracefully terminate the program (with grace)
 	syscall
 
 
 
-# FUNC PARAM	: $a0=&obj; $a1=color; $a2=x-coord; $a3=y-coord;
+# FUNC PARAM	: $a0=&obj_type; $a1=color; $a2=x-coord; $a3=y-coord;
 # LOCAL REG 	: $t0=&obj_offset; $t1=index; $t2=upper_bound; $t3=obj.pos; $t4=temp; $t5=temp;
 draw:
+	# OPTIMIZE THIS MORE
+
 	# calc obj.pos
 	sll $t3, $a3, 6
 	add $t3, $t3, $a2
 	sll $t3, $t3, 2
 	# get obj_offset
-	lw $t4, 0($a0)
-	lw $t0, 8($t4)
+	lw $t0, 8($a0)
 	# get upper bound
-	lw $t4, 0($a0)
-	lw $t2, 4($t4)
+	lw $t2, 4($a0)
 	# set index
 	addi $t1, $zero, 0
 	
@@ -743,34 +810,4 @@ draw_loop:
 	bne $t1, $t2, draw_loop		# jump to draw_loop until index is the upper bound
 	
 	jr $ra
-
-
-
-
-
-
-	
-
-	# THIS IS WHERE YOU CHECK FOR SHIP COLLISION AND THAT WILL BE ANOTHER THING
-	# with valid new pos, check for collision with the ship (and the bullet later)
-		# how exactly? 
-		# we get the ship's x-y coords and we calculate the differences
-		# check if it's within the padding for eg if the padding was 1 we check: -1 <= x/y <= 1
-		# the importance is that both x and y are within the ineq, otherwise it could just be on the same row/col
-		# then we can do damage and destroy the rock
-		# doing damage is decrementing the health in the ship and setting the damage timer to 6
-			# why 6? i calculated the ms to hrtz and hrtz to fps and we're going at 12fps, i want to change the color for at 
-			# least half a second and if multiple collide, i want to reset the timer, not add more to it because that might look weird.
-			# I WILL MODIFY ship-loop (at the end, where it is going to be drawn) to include a check if it's non-0
-			# it will decrement that timer and reroute the draw function to draw with the specified color of damage
-			# have to include that check near the front so that even if the ship hasn't moved, it can still be updated
-
-
-
-
-
-
-
-
-
 
