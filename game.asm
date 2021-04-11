@@ -587,7 +587,7 @@ i_col_loop:
 	addi $s5, $s5, 4		# shift obj_arr to the next element
 	addi $t9, $t9, 4		# increment index
 e_col_loop: bne $t9, 20, col_loop	# jump to col_loop if not yet gone through whole obj_arr
-	
+
 d_obj:
 	# preserve $t0 - $t2 registers
 	# $t0=index; $t1=new x-coord; $t2=new y-coord; $t3=temp;
@@ -678,8 +678,10 @@ bullet_col_loop:
 	sub $t6, $t2, $t6		# calc (bullet y-coord - ROCK y-coord)
 	# get x-y padding
 	# $t5=x-diff; $t6=y-diff; $t7=x-padding; $t8=y-padding;
-	lw $t7, 12($s4)			# get x-padding
-	lw $t8, 16($s4)			# get y-padding
+	lw $t7, 12($s4)			# get x-padding (sub 1 for extra padding)
+	addi $t7, $t7, -1
+	lw $t8, 16($s4)			# get y-padding (add 1 for extra padding)
+	addi $t8, $t8, 1
 	
 	# check for horizontal collision
 	# $s7=temp; $t5=x-diff; $t7=x-padding;
@@ -692,7 +694,7 @@ bullet_col_loop:
 	bgt $t6, $t8, i_bcl		# jump to i_bcl if there is no vertical collision
 	sll $s7, $t8, 1
 	sub $t8, $t8, $s7		# calc inverse of y-padding
-	blt $t5, $t7, i_bcl		# jump to i_bcl if there is no vertical collision
+	blt $t6, $t8, i_bcl		# jump to i_bcl if there is no vertical collision
 	
 	# destroy both of them (because at this point, I'm confident that they've collided)
 	# $s3=&obj_info; $s5=&bullet; $t4=new bullet x-coord; $t5=temp;
@@ -705,7 +707,7 @@ bullet_col_loop:
 	addi $sp, $sp, -8
 	sh $t1, 0($sp)
 	sh $t2, 2($sp)
-	sh $t3, 4($sp)
+	sh $t4, 4($sp)
 	sh $t0, 6($sp)			# store registers $t0 - $t2, $t4 in the STACK
 	# erase the ROCK
 	# $s3=&obj_info; $s4=&obj_type; $t5=ROCK x-coord; $t6=ROCK y-coord;
@@ -716,12 +718,12 @@ bullet_col_loop:
 	jal draw			# pass function-param (via registers) and call draw
 	# indicate this bullet's removal
 	addi $t5, $zero, -1
-	lh $t5, 0($s3)
+	sh $t5, 0($s3)
 	# retrieve preserved registers 
 	# $t0=index; $t1=bullet x-coord; $t2=bullet y-coord; $t4=new bullet x-coord;
 	lh $t1, 0($sp)
 	lh $t2, 2($sp)
-	lh $t3, 4($sp)
+	lh $t4, 4($sp)
 	lh $t0, 6($sp)
 	addi $sp, $sp, 8		# get preserved registers 
 	
@@ -842,6 +844,20 @@ rock_reset_loop:
 e_rrl:	bne $t0, 20, rock_reset_loop	# jump to rock_reset_loop if not yet gone through the whole obj_arr 
 
 	# iterate through bullet array and set all their x-coords to -1
+	# $s5=&bullet; $s6=&bullet_arr; $t0=index; $t1=temp;
+	la $s6, bullet_arr		# get &bullet_arr
+	addi $t0, $zero, 0		# set index
+	addi $t1, $zero, -1		# set new VAL
+bullet_reset_loop:
+	# setup for bullet_reset_loop
+	# $s5=&bullet; $s6=&bullet_arr; 
+	lw $s5, 0($s6)			# get &bullet
+	sh $t1, 0($s5)			# set new VAL in bullet
+	
+	addi $s6, $s6, 4		# shift bullet_arr to the next element
+	addi $t0, $t0, 4		# increment index
+e_brl:	bne $t0, 12, bullet_reset_loop	# jump to bullet_reset_loop if not yet gone through the whole bullet_arr
+	
 
 	j start				# jump to start (after everything has been initialized, but before the canvas was made)
 I:
@@ -872,18 +888,9 @@ e_bl: 	bne $t9, 12, bullet_loop	# jump to bullet_loop if not yet gone through wh
 	# jump to draw_ship because all bullets are used up
 	j draw_ship
 bullet_init:
-	# draw the bullet in front of the SHIP
-	# $t0=ship x-coord; $t1=ship y-coord; $t4=bullet x-coord;
+	# set new bullet-coords to be in front of the SHIP
+	# $s5=&bullet; $t1=ship y-coord; $t4=bullet x-coord; 
 	addi $t4, $t0, 2
-	li $a0, BULLET_COLOR
-	addi $a1, $t4, 0
-	addi $a2, $t1, 0
-	jal draw_bullet			# pass function-param (via registers) and call draw_bullet
-	
-	# set new bullet-coords 
-	# $s5=&bullet; $t1=ship y-coord; $t4=bullet x-coord; $t5=h-speed;
-	lh $t5, 4($s5)
-	add $t4, $t4, $t5
 	sh $t4, 0($s5)
 	sh $t1, 2($s5)			# store bullet-coords in bullet
 	# the ship could not possibly move at this frame, so we just draw the SHIP again on top of itself
