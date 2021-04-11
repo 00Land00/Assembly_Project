@@ -116,6 +116,7 @@ health_offset:			.space		120
 .globl main
 main:
 # INITIALIZATION
+init:
 	# set canvas-color
 	# $s0=base_addr; $s1=canvas_color; $s2=row_i; $s3=col_i; $s4=A[i][j] (where A is the framebuffer)
 	li $s0, BASE_ADDRESS		# set starting address
@@ -154,7 +155,7 @@ e_crl:	bne $s2, 32, crow_loop		# if index not yet 32, jump to row_loop
 	la $s1, health
 	la $s0, health_offset
 	sw $s0, 8($s1)
-	addi $t0, $t0, 0
+	addi $t0, $zero, 0
 hp_l:
 	sh $t0, 0($s0)
 	addi $t0, $t0, 4
@@ -180,30 +181,7 @@ e_hpl: bne $t0, 7680, hp_l
 	jal draw
 	li $t0, 12
 	sw $t0, 4($s1)
-
-# redraw in health bar when damaged
-# rebound right edge for player ship
 	
-	# this is where it will officially be drawn, but we'll have a breakpoint to see if i can draw and figure out a way to draw the damaged bar
-	# first run: full bar with the color of health_fill
-	# second run:
-		# set the value of size of offset to be smaller than usual (store it in register for now)
-		# figure out a formula to do it so it removes three rows at a time
-		# draw with health_gap
-		# then add the offset with the offset address
-		# and use the rest of the offset along with the offsetted offset array address and assign it to health
-		# then draw with health_fill
-		# reassign previous things
-		
-		# OH we don't have to recolor the previous health_gap
-		# we can start with a full offset with health_fill for all
-		# then we can reduce offset by some amount which is transfered to the offset in the offset address
-		# we draw the full offset amount initially with the beginning of the offset address
-		# after we do that, we change the offset to be the amount of pixels we want removed (3 rows is 6 pixels which is 12 offset amount)
-		# we set that offset and add (and also set) that to the offset address
-		# hopefully there's no off-by-one
-		# but this makes it easy because we don't have to worry about drawing the bar again, we just paint over what we need to remove
-
 	# initialize ROCK-TYPEs and TYPE_ARRAY
 	# $s0=rock; $s1=&type_arr; $s2=rock_offset;
 	# $s0=rock_offset; $s1=rock; $s2=&type_arr;
@@ -466,13 +444,10 @@ left:
 	j d_obj
 s_np:	
 
-
-# implement health system
-# implement indicator of damage
-# implement UI
-# implement stopping condition (so it can end without me stopping it manually)
+# restarting
 # shooting stuff
-# score system and restarting
+# score system 
+
 # relabel and make better comments
 
 
@@ -540,7 +515,6 @@ ship_col:
 	sw $t3, 0($s7)
 	jal draw
 	# check if it's gg
-	# this is where you branch out of game_loop if it was 0
 	lw $t3, 4($s0)
 	lh $t4, 8($t3)
 	beqz $t4, e_game
@@ -654,7 +628,7 @@ i_col_loop:
 	# $s5=&obj_arr; $t9=index;
 	addi $s5, $s5, 4
 	addi $t9, $t9, 4
-e_col_loop: bne $t9, 16, col_loop
+e_col_loop: bne $t9, 20, col_loop
 	
 d_obj:
 	# cover the old
@@ -690,7 +664,7 @@ i_obj:
 	addi $sp, $sp, 4
 	addi $s1, $s1, 4		# update obj_arr pointer
 	addi $t0, $t0, 4
-e_obj: bne $t0, 16, update_obj
+e_obj: bne $t0, 20, update_obj
 	
 	
 update_ship:
@@ -718,6 +692,7 @@ update_ship:
 	beq $s5, 115, S			# input was S
 	beq $s5, 97, A			# input was A
 	beq $s5, 100, D			# input was D
+	beq $s5, 112, P			# input was P
 	# input was p
 	# input was i
 	j draw_ship			# input was INVALID
@@ -735,8 +710,31 @@ A:	addi $t2, $t0, -2		# calc new-x-coord with padding
 	addi $t2, $zero, 1		# remove padding
 	j s_i
 D:	addi $t2, $t0, 2		# calc new-x-coord with padding
-	blt $t2, 62, s_i		# if invalid, got horizontal-upper-bound
-	addi $t2, $zero, 62		# remove padding
+	blt $t2, 58, s_i		# if invalid, got horizontal-upper-bound
+	addi $t2, $zero, 58		# remove padding
+	j s_i
+P:	
+	addi $t0, $zero, 10
+	sh $t0, 8($s3)
+	
+	la $s7, health
+	addi $t0, $zero, 1
+	sw $t0, 0($s7)
+	addi $t0, $zero, 120
+	sw $t0, 4($s7)
+	addi $t0, $zero, 0
+	la $s1, obj_arr
+rock_reset_loop:
+	lw $s3, 0($s1)
+	lw $s3, 4($s3)
+	addi $t1, $zero, -1
+	sh $t1, 0($s3)
+	
+	addi $t0, $t0, 4
+	addi $s1, $s1, 4
+e_rrl:	bne $t0, 20, rock_reset_loop
+	j init
+I:
 s_i:
 	
 	# with differences, set it AND redraw it (otherwise, don't redraw)
