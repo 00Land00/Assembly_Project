@@ -931,12 +931,13 @@ D:	addi $t2, $t0, 2		# calc new-x-coord with padding
 	addi $t2, $zero, 58		# remove padding
 	j s_i
 P:	
+	lw $s3, 4($s0)			# just to make sure we're all on the same page, $s3=&ship_info
 	# reset SHIP_HEALTH
 	# $t0=MAX health; $s3=&ship_info;
 	addi $t0, $zero, 10
 	sh $t0, 8($s3)			# init and set MAX-health in SHIP
 	# reset SHIP_POS
-	# $s3=&ship_info; $t0=x-coord; $t1=y-coord;
+	# $s0=&ship; $s3=&ship_info; $t0=x-coord; $t1=y-coord;
 	addi $t0, $zero, 15
 	addi $t1, $zero, 15		# init values for SHIP_INFO
 	sh $t0, 0($s3)
