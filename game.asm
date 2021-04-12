@@ -32,7 +32,15 @@
 # 
 # Any additional information that the TA needs to know:
 # - (write here, if any)
-# 
+# - The pixel-font digits I used in this game are not my own creation,
+#   they are made by a user that goes by 'vyznev'.
+#
+#   https://www.fontstruct.com/fontstructions/show/1404171/cg-pixel-4x5 
+#
+#   The link above takes you directly to the spritesheet where I found it. 
+#   The pixel-font is licensed under the CC0 / public-domain.
+#
+# - I'am Frakenstein and this is my monster. Please handle with care <3
 #####################################################################
 
 .data
@@ -84,11 +92,51 @@ bullet_arr:		.word		0 0 0
 
 # UI
 # structure of HEALTH BAR
-# [obj]				.word		[current y-index] [size of offset array (in bytes)] [address of offset array]
-# [obj_offset]			.space		[offset space amount]
-health:				.word		1 120 0 
-health_offset:			.space		120
+# [health]		.word		[current y-index] [sizeof offset_arr] [address of offset_arr]
+# [health_offset]	.space		[offset space amount]
+health:			.word		1 120 0 
+health_offset:		.space		120
+# SCORE (holds the score)
+score:			.half		0
+# ARRAY OF digits
+score_arr:		.word		0 0 0 0 0 0 0 0 0 0
+# structure of SCORE TYPE
+# [s#_type]		.word		[color] [sizeof offset_arr] [address of offset_arr]
+s0:			.word		0x7b56c7 24 0
+s1:			.word		0x7b56c7 12 0		
+s2:			.word		0x7b56c7 20 0
+s3:			.word		0x7b56c7 20 0
+s4:			.word		0x7b56c7 20 0
+s5:			.word		0x7b56c7 24 0
+s6:			.word		0x7b56c7 20 0
+s7:			.word		0x7b56c7 16 0
+s8:			.word		0x7b56c7 20 0
+s9:			.word		0x7b56c7 20 0
+# structure of these digits ARE BASED ON THE PIXEL-FONT I LINKED IN THE ADDITIONAL NOTES OF THE PREAMBLE (the pivot is at the top-left corner)
+s0_offset:		.half		4 8 256 264 268 512 516 524 768 780 1028 1032 1036
+s1_offset:		.half		8 260 264 520 776 1032
+s2_offset:		.half		4 8 256 268 520 772 1024 1028 1032 1036
+s3_offset:		.half		0 4 8 268 516 520 780 1024 1028 1032
+s4_offset:		.half		0 12 256 268 512 516 520 524 780 1036
+s5_offset:		.half		0 4 8 12 256 512 516 520 780 1024 1028 1032
+s6_offset:		.half		4 8 256 512 516 520 768 780 1028 1032
+s7_offset:		.half		0 4 8 12 268 520 776 1032
+s8_offset:		.half		4 8 256 268 516 520 768 780 1028 1032
+s9_offset:		.half		4 8 256 268 516 520 524 780 1028 1032
 
+# the word FIN (for finish)
+fin: 			.word		0 0 0
+# structure of each letter
+# [lx]			.word		[color] [sizeof offset_arr] [address of offset_arr]
+# the letter F
+lf:			.word		0x3a2999 12 0
+lf_offset:		.half		0 4 8 256 260 512
+# the letter I (I have to add an extra l because otherwise MARS thinks I'm trying to load an immediate as I load this address)
+lli:			.word		0x3a2999 6 0
+li_offset:		.half		4 260 516
+# the N
+ln:			.word 		0x3a2999 12 0
+ln_offset:		.half		0 4 256 264 512 520
 
 .text
 # canvas/framebuffer-related CONSTANTS
@@ -128,6 +176,66 @@ awake: # .data-related variables are initialized HERE
 	sw $s2, 4($s1)			# get and set b2 in bullet_arr
 	la $s2, b3
 	sw $s2, 8($s1)			# get and set b3 in bullet_arr
+	# initialize SCORE
+	# $s1=&score_arr; $s2=&score_type; $s3=&score_offset;
+	la $s1, score_arr		# get &score_arr
+	
+	la $s2, s0
+	la $s3, s0_offset		
+	sw $s3, 8($s2)			# get and set s0_offset in s0
+	sw $s2, 0($s1)			# get and set s0 in score_arr
+	la $s2, s1
+	la $s3, s1_offset
+	sw $s3, 8($s2)			# get and set s1_offset in s1
+	sw $s2, 4($s1)			# get and set s1 in score_arr
+	la $s2, s2
+	la $s3, s2_offset
+	sw $s3, 8($s2)			# get and set s2_offset in s2
+	sw $s2, 8($s1)			# get and set s2 in score_arr
+	la $s2, s3
+	la $s3, s3_offset
+	sw $s3, 8($s2)			# get and set s3_offset in s3
+	sw $s2, 12($s1)			# get and set s3 in score_arr
+	la $s2, s4
+	la $s3, s4_offset
+	sw $s3, 8($s2)			# get and set s4_offset in s4
+	sw $s2, 16($s1)			# get and set s4 in score_arr
+	la $s2, s5
+	la $s3, s5_offset
+	sw $s3, 8($s2)			# get and set s5_offset in s5
+	sw $s2, 20($s1)			# get and set s5 in score_arr
+	la $s2, s6
+	la $s3, s6_offset
+	sw $s3, 8($s2)			# get and set s6_offset in s6
+	sw $s2, 24($s1)			# get and set s6 in score_arr
+	la $s2, s7
+	la $s3, s7_offset
+	sw $s3, 8($s2)			# get and set s7_offset in s7
+	sw $s2, 28($s1)			# get and set s7 in score_arr
+	la $s2, s8
+	la $s3, s8_offset
+	sw $s3, 8($s2)			# get and set s8_offset in s8
+	sw $s2, 32($s1)			# get and set s8 in score_arr
+	la $s2, s9
+	la $s3, s9_offset
+	sw $s3, 8($s2)			# get and set s9_offset in s9
+	sw $s2, 36($s1)			# get and set s9 in score_arr
+	# initialize FIN
+	# $s1=fin; $s2=letter; $s3=letter_offset;
+	la $s1, fin			# get &fin
+	
+	la $s2, lf
+	la $s3, lf_offset
+	sw $s3, 8($s2)			# get and set lf_offset in lf
+	sw $s2, 0($s1)			# get and set lf in score_arr
+	la $s2, lli
+	la $s3, li_offset
+	sw $s3, 8($s2)			# get and set li_offset in lli
+	sw $s2, 4($s1)			# get and set lli in score_arr
+	la $s2, ln
+	la $s3, ln_offset
+	sw $s3, 8($s2)			# get and set ln_offset in ln
+	sw $s2, 8($s1)			# get and set ln in score_arr
 	# initialize HEALTH_BAR
 	# $s1=&health_offset; $s2=&health; $t0=index;
 	la $s2, health
@@ -696,7 +804,18 @@ bullet_col_loop:
 	sub $t8, $t8, $s7		# calc inverse of y-padding
 	blt $t6, $t8, i_bcl		# jump to i_bcl if there is no vertical collision
 	
+	
 	# destroy both of them (because at this point, I'm confident that they've collided)
+	
+	# upate score
+	# $t5=&score; $t6=temp;
+	la $t5, score
+	lh $t6, 0($t5)
+	addi $t6, $t6, 1
+	sh $t6, 0($t5)			# get, increment, and set the new score
+	# check if they've done the impossible 
+	beq $t6, 999, end		# jump to end if you're A GAMER (if score is 999)
+	
 	# $s3=&obj_info; $s5=&bullet; $t4=new bullet x-coord; $t5=temp;
 	# indicate this bullet's removal
 	# $t4=new bullet x-coord;
@@ -858,6 +977,11 @@ bullet_reset_loop:
 	addi $t0, $t0, 4		# increment index
 e_brl:	bne $t0, 12, bullet_reset_loop	# jump to bullet_reset_loop if not yet gone through the whole bullet_arr
 	
+	# reset the score
+	# $t5=&score; $t6=temp;
+	addi $t6, $zero, 0
+	la $t5, score
+	sh $t6, 0($t5)
 
 	j start				# jump to start (after everything has been initialized, but before the canvas was made)
 I:
@@ -935,9 +1059,159 @@ e_ship:
 	j game_loop			# jump back to game_loop because we're not done yet
 
 end: # the curtains fall as we finish... ENCORE?
-# END-SCREEN
-	li $v0, 10			# gracefully terminate the program (with grace)
+	# slightly longer pause pause
+	li $v0, 32
+	li $a0, 700
 	syscall
+	# draw CANVAS
+	# $s0=base_addr; $s1=canvas_color; $s2=row_i; $s3=col_i; $s4=A[i][j] (where A is the framebuffer)
+	# $s3=base_addr; $s4=canvas_color; $s5=frame_buffer[i][j]; $t0=row_i; $t1=col_i; 
+	li $s3, BASE_ADDRESS		# get frame_buffer address
+	li $s4, BG_COLOR		# get color of the canvas
+	addi $t0, $zero, 0		# set index (for row_loop)
+canvas_row_loop1:
+	addi $t1, $zero, 0		# set index (for col_loop)
+canvas_col_loop1:
+	add $s5, $s3, $t1		# get address of frame_buffer that's a multiple of 16
+	sw $s4, 0($s5)			# paint each group of 16 pixels
+	sw $s4, 4($s5)
+	sw $s4, 8($s5)
+	sw $s4, 12($s5)
+	sw $s4, 16($s5)
+	sw $s4, 20($s5)
+	sw $s4, 24($s5)
+	sw $s4, 28($s5)
+	sw $s4, 32($s5)
+	sw $s4, 36($s5)
+	sw $s4, 40($s5)
+	sw $s4, 44($s5)
+	sw $s4, 48($s5)
+	sw $s4, 52($s5)
+	sw $s4, 56($s5)
+	sw $s4, 60($s5)
+	
+	addi $t1, $t1, 64		# update address to next group of 16 pixels
+e_ccl1:	bne $t1, 256, canvas_col_loop1	# jump to col_loop if address of frame_buffer has not reached edge of the canvas yet
+	
+	addi $s3, $s3, 256		# update the address to the next row
+	addi $t0, $t0, 1		# increment the index
+e_crl1:	bne $t0, 32, canvas_row_loop1	# jump to row_loop if canvas has not been completely painted
+
+	# calc digits of the score
+	# $s3=&score; $s4=&score_arr; $s5=temp;
+	la $s3, score			
+	la $s4, score_arr		# get &score_arr
+	lh $s3, 0($s3)			# get score value
+	# 100th digit
+	# $t0=temp (contains the 100th digit); $t1=temp;
+	addi $t0, $zero, 1000
+	addi $t1, $zero, 100
+	div $s3, $t0
+	mfhi $t0
+	div $t0, $t1
+	mflo $t0			# calc (score-value % 1000) // (100)
+	# 10th digit
+	# $t1=temp (contains the 10th digit); $t2=temp;
+	addi $t1, $zero, 100
+	addi $t2, $zero, 10
+	div $s3, $t1
+	mfhi $t1
+	div $t1, $t2
+	mflo $t1			# calc (score-value % 100) // (10)
+	# 1st digit
+	# $t2=temp (contains the 1st digit); 
+	addi $t2, $zero, 10
+	div $s3, $t2
+	mfhi $t2			# calc (score-value % 10) 
+	# preserve registers $t1 and $t2
+	# $t1=10th digit; $t2=1st digit;
+	addi $sp, $sp, -4
+	sh $t1, 0($sp)
+	sh $t2, 2($sp)			# store registers $t1, and $t2 in the STACK
+	# print each digit with a pause
+	sll $t0, $t0, 2
+	add $s5, $s4, $t0
+	lw $a0, 0($s5)
+	lw $a1, 0($a0)
+	li $a2, 25
+	li $a3, 13
+	jal draw			# pass function-param (via registers) and call draw
+	# slight pause
+	li $v0, 32
+	li $a0, 700
+	syscall
+	
+	lh $t1, 0($sp)			# get $t1 from the STACK
+	sll $t1, $t1, 2
+	add $s5, $s4, $t1
+	lw $a0, 0($s5)
+	lw $a1, 0($a0)
+	li $a2, 30
+	li $a3, 13
+	jal draw			# pass function-param (via registers) and call draw
+	# slight pause
+	li $v0, 32
+	li $a0, 700
+	syscall
+	
+	lh $t2, 2($sp)			# get $t2 from the STACK
+	sll $t2, $t2, 2
+	add $s5, $s4, $t2
+	lw $a0, 0($s5)
+	lw $a1, 0($a0)
+	li $a2, 35
+	li $a3, 13
+	jal draw			# pass function-param (via registers) and call draw
+	# slightly longer pause pause
+	li $v0, 32
+	li $a0, 800
+	syscall
+	
+	# print fin
+	# $s3=&fin;
+	la $s3, fin
+	# the letter f
+	lw $a0, 0($s3)
+	li $a1, 0xc2bd27
+	li $a2, 28
+	li $a3, 19
+	jal draw			# pass function-param (via registers) and call draw
+	
+	# the letter i
+	lw $a0, 4($s3)
+	li $a1, 0xc2bd27
+	li $a2, 31
+	li $a3, 19
+	jal draw			# pass function-param (via registers) and call draw
+	
+	# the letter n
+	lw $a0, 8($s3)
+	li $a1, 0xc2bd27
+	li $a2, 34
+	li $a3, 19
+	jal draw			# pass function-param (via registers) and call draw
+	
+restart_check:
+	# check and get input
+	# $s5=keystroke_val; $s6=temp;
+	li $s5, KEYSTROKE
+	lw $s6, 0($s5)			# get keystroke-event value
+	bne $s6, 1, i_rc		# ensure that user did input something, otherwise jump to draw_ship
+	lw $s5, 4($s5)			# get ASCII user input
+	
+	beq $s5, 112, P			# if input was P jump to P which handles all the restarting and such
+	beq $s5, 113, close		# if input was Q jump to close which terminates the program
+	
+	# otherwise, we'll wait until you get it
+i_rc:
+	# sleep
+	li $v0, 32
+	li $a0, 40
+	syscall
+e_rc:	j restart_check
+close:
+	li $v0, 10			# gracefully terminate the program, hold the grace (with grace)
+	syscall				
 
 
 
