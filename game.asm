@@ -30,6 +30,7 @@
 # - yes / no / yes, and please share this project github link as well!
 # yes, and please share this project github link as well:
 # 
+# 
 # Any additional information that the TA needs to know:
 # - (write here, if any)
 # - The pixel-font digits I used in this game are not my own creation,
@@ -41,6 +42,31 @@
 #   The pixel-font is licensed under the CC0 / public-domain.
 #
 # - I'am Frakenstein and this is my monster. Please handle with care <3
+# - WASD for moving
+# - I for shooting
+# - P for restarting
+# - Q for quiting (at the gameover screen)
+# 
+# - to not overload the game with bullets (and make it too easy), you can have a maximum of 3 bullets on screen at one-time
+#
+# - the three rules that made my obstacles the way they are:
+#	- if two obstacles collide going at opposite directions, then swap both of their v-speed and change the current ball's new position
+#		- if the new position still makes it collide with the other, just remove itself entirely
+#		- if the new position goes above or below the screen, just remove itself entirely
+# 	- if two obstacles collide going at the same direction (so one is faster and bumps into the slower one), then remove the current ball and 
+#	  swap the other's v-speed
+#	- if the obstacle only moves horizontally, nothing will make it bounce, nothing will remove it besides the left-wall, a bullet, or a ship
+#		- the rare hidden obstacle is one where two obstacles spawn really close to each other and both move only horizontally at the same speed.
+#		  since neither bounce, neither is removed by each other and you get a weird overlapping issue.
+#
+# - the entire process made me relearn everything I knew about programming. 
+#   or should i say: made me go against what i knew about programming in higher languages
+# 	- i've learned to jump sparingly and be thoughtful of branches unless deemed necessary
+#	- i believe mult and div are the devil now due to their costly datapath
+# 		- (using bit-shifting and basic arithmetic to do 90% of the calculations) >> (mult and div) - country girls make do
+# 	- I HAVE 2 FUNCTIONS because of the first point
+# 	- i had to maximize the amount of registers i used and minimize the amount of memory operations i used
+# 	- i unfolded my inner loops to cut costs or outright hardcoded it (magic numbers HA! they're everywhere)
 #####################################################################
 
 .data
